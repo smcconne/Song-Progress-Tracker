@@ -3,7 +3,7 @@
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
 -- Version info for auto-updater
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.0.1"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
