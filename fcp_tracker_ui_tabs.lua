@@ -29,6 +29,20 @@ function handle_tab_height_switch(ctx, new_tab)
   -- Skip during project switch - model handles screenset load
   if PROJECT_SWITCH_MODE then return end
   
+  -- Handle Jump Regions window visibility based on tab
+  if RBN_JUMP_REGIONS then
+    if new_tab == "Setup" then
+      -- Close Jump Regions when switching to Setup
+      RBN_JUMP_REGIONS.stop()
+    elseif current_tab == "Setup" and new_tab ~= "Setup" then
+      -- Open Jump Regions when switching from Setup to any other tab
+      RBN_JUMP_REGIONS.start()
+    elseif not RBN_JUMP_REGIONS.is_running() and new_tab ~= "Setup" then
+      -- Ensure Jump Regions is running on non-Setup tabs
+      RBN_JUMP_REGIONS.start()
+    end
+  end
+  
   -- Determine direction of switch
   local is_switching_to_vocals   = (new_tab == "Vocals"    and current_tab ~= "Vocals")
   local is_switching_from_vocals = (current_tab == "Vocals" and new_tab ~= "Vocals")

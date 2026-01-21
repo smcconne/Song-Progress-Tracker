@@ -2,12 +2,19 @@
 -- @version 1.4.5
 -- @author FinestCardboardPearls
 
+-- Module table for integration with progress tracker
+local JumpRegions = {}
+
 local proj = 0
 local ME_GO_TO_EDIT_CURSOR = 40151
 local EXT_SECTION = "REGIONS_JUMP_UI"
 local EXT_KEY_JUMP = "JUMP_NOW"
 local EXT_SECTION_PT = "RBN_JUMP"
 local EXT_KEY_PT_REGION_ID = "TARGET_REGION_ID"
+
+-- Module state
+local ctx = nil
+local is_running = false
 
 -- ImGui: enum + color helper
 local TGT_CELL = (reaper.ImGui_TableBgTarget_CellBg and reaper.ImGui_TableBgTarget_CellBg()) or 3
@@ -93,18 +100,16 @@ local function any_mouse_down(ctx)
 end
 
 -- State
-local REGIONS          = scan_regions()
-local last_proj_change = reaper.GetProjectStateChangeCount(0)
+local REGIONS          = {}
+local last_proj_change = 0
 local MEAS_OFFSET      = 0
 local MEAS_OFFSET_STR  = "0"
 local me_recenter_target_time, me_recenter_frames = nil, 0
-
--- ImGui
-local ctx = reaper.ImGui_CreateContext("Jump Regions")
-reaper.atexit(function() end)
-local WIN_FLAGS = reaper.ImGui_WindowFlags_NoCollapse()
+local WIN_FLAGS = nil
 
 local function ui_loop()
+  if not is_running or not ctx then return end
+  
   local cur_change = reaper.GetProjectStateChangeCount(0)
   if cur_change ~= last_proj_change then last_proj_change = cur_change; REGIONS = scan_regions() end
 
@@ -320,9 +325,46 @@ local function ui_loop()
 
   reaper.ImGui_End(ctx)
   reaper.ImGui_PopStyleVar(ctx, 2)
-  if open == false then return end
+  if open == false or not is_running then
+    is_running = false
+    return
+  end
   reaper.defer(ui_loop)
 end
 
-reaper.defer(ui_loop)
+-- Start the Jump Regions window
+function JumpRegions.start()
+  if is_running then return end  -- Already running
+  
+  -- Initialize state
+  REGIONS = scan_regions()
+  last_proj_change = reaper.GetProjectStateChangeCount(0)
+  MEAS_OFFSET = 0
+  MEAS_OFFSET_STR = "0"
+  me_recenter_target_time = nil
+  me_recenter_frames = 0
+  was_focused = false
+  pending_focus_redirect = false
+  
+  -- Create ImGui context
+  ctx = reaper.ImGui_CreateContext("Jump Regions")
+  WIN_FLAGS = reaper.ImGui_WindowFlags_NoCollapse()
+  
+  is_running = true
+  reaper.defer(ui_loop)
+end
+
+-- Stop the Jump Regions window
+function JumpRegions.stop()
+  is_running = false
+  -- Context will be garbage collected when no longer referenced
+end
+
+-- Check if running
+function JumpRegions.is_running()
+  return is_running
+end
+
+-- Return the module
+return JumpRegions
 

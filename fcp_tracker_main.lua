@@ -104,6 +104,9 @@ local to_load = {
 }
 for _, fname in ipairs(to_load) do dofile(DIR .. fname) end
 
+-- Load Jump Regions module (integrated into progress tracker)
+RBN_JUMP_REGIONS = dofile(DIR .. "fcp_jump_regions.lua")
+
 -- One global ImGui context, created once with a unique label.
 -- Pass ConfigFlags_DockingEnable as second parameter
 local ImGui = reaper
@@ -181,6 +184,11 @@ end
 -- Force SET mode at startup (skip if starting on Vocals, Overdrive, or Setup - no FX alignment needed)
 if restored_tab ~= "Vocals" and restored_tab ~= "Overdrive" and restored_tab ~= "Setup" then
   reaper.SetExtState(EXT_NS, EXT_FOCUS, "SET", false)
+end
+
+-- Start Jump Regions window if not on Setup tab
+if restored_tab ~= "Setup" and RBN_JUMP_REGIONS then
+  RBN_JUMP_REGIONS.start()
 end
 
 -- Save current tab, difficulty, and Pro Keys state on exit (project level)
