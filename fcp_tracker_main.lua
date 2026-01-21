@@ -3,7 +3,7 @@
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
 -- Version info for auto-updater
-SCRIPT_VERSION = "1.0.1"
+SCRIPT_VERSION = "1.0.2"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
@@ -26,17 +26,33 @@ if AutoUpdater then
   AutoUpdater.set_repo("smcconne", "Song-Progress-Tracker", "main")
   AutoUpdater.SCRIPT_VERSION = SCRIPT_VERSION
   
-  -- Check for updates silently at startup (respects check_interval)
-  -- Set to true to show update prompt, false for silent background check
-  local show_update_prompt = false
+  -- Check for updates at startup (respects check_interval)
   local has_update, new_version = AutoUpdater.check()
-  if has_update and show_update_prompt then
-    AutoUpdater.run(true)
-  elseif has_update then
-    reaper.ShowConsoleMsg(string.format(
-      "[RBN Progress Tracker] Update available! v%s -> v%s\n",
-      SCRIPT_VERSION, new_version or "unknown"
-    ))
+  if has_update then
+    local response = reaper.MB(
+      string.format(
+        "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
+        SCRIPT_VERSION,
+        new_version or "unknown"
+      ),
+      "Update Available",
+      4  -- Yes/No
+    )
+    
+    if response == 6 then  -- Yes
+      AutoUpdater.update(function(updated, failed, files)
+        if updated > 0 then
+          reaper.MB(
+            string.format(
+              "Updated %d files successfully!\n\nPlease restart REAPER to apply the changes.",
+              updated
+            ),
+            "Update Complete",
+            0
+          )
+        end
+      end)
+    end
   end
 end
 

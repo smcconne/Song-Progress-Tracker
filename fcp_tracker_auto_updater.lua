@@ -57,8 +57,8 @@ AutoUpdater.config = {
   silent_updates = false,
 }
 
--- Version info embedded in script (update this with each release)
-AutoUpdater.SCRIPT_VERSION = "1.0.1"
+-- Version will be set by fcp_tracker_main.lua via AutoUpdater.SCRIPT_VERSION
+AutoUpdater.SCRIPT_VERSION = nil
 
 -------------------------------------------------------------------------------
 -- Utility Functions
@@ -219,7 +219,7 @@ local function check_for_updates_silent()
   local main_file = "fcp_tracker_main.lua"
   local url = get_raw_url(main_file)
   
-  -- Get remote file hash via content comparison
+  -- Get remote file content
   local remote_content, success = http_get(url, 15000)
   if not success or not remote_content then
     log("Failed to fetch remote file for update check")
@@ -232,15 +232,26 @@ local function check_for_updates_silent()
     return false, nil
   end
   
+  -- Compare local file content against remote content
+  local cfg = AutoUpdater.config
+  local local_path = cfg.local_path or get_script_path()
+  local local_content = read_file(local_path .. main_file)
+  
+  if not local_content then
+    log("Failed to read local file")
+    return false, nil
+  end
+  
   local remote_hash = string_hash(remote_content)
-  local local_hash = get_stored_version_hash()
+  local local_hash = string_hash(local_content)
   
   log("Remote hash: " .. remote_hash .. ", Local hash: " .. local_hash)
   
   if remote_hash ~= local_hash then
-    -- Extract version from remote content if available
+    -- Extract versions for comparison
     local remote_version = remote_content:match('SCRIPT_VERSION%s*=%s*"([^"]+)"')
-    log("Update available! Remote version: " .. (remote_version or "unknown"))
+    local local_version = local_content:match('SCRIPT_VERSION%s*=%s*"([^"]+)"')
+    log("Update available! Local: " .. (local_version or "unknown") .. " -> Remote: " .. (remote_version or "unknown"))
     return true, remote_version
   end
   
