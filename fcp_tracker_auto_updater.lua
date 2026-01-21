@@ -94,14 +94,36 @@ local function http_get(url, timeout_ms)
   local result = reaper.ExecProcess(curl_cmd, timeout_ms)
   
   if result and result ~= "" then
+    log("Raw result length: " .. #result)
+    
     -- ExecProcess returns exit code + output separated by newline
+    -- Try to parse exit code first
     local exit_code, content = result:match("^(%d+)\n(.*)$")
-    if exit_code == "0" and content then
-      log("HTTP GET success, length: " .. #content)
-      return content, true
-    elseif not exit_code then
-      -- Sometimes the result is just the content
-      log("HTTP GET success (no exit code), length: " .. #result)
+    if exit_code and content and #content > 0 then
+      -- We have exit code + content format
+      -- Check if content looks like valid Lua (starts with --)
+      if content:match("^%-%-") then
+        log("HTTP GET success (valid Lua content), length: " .. #content)
+        return content, true
+      elseif exit_code == "0" then
+        log("HTTP GET success (exit 0), content length: " .. #content)
+        return content, true
+      else
+        log("HTTP GET exit code " .. exit_code .. " with non-Lua content")
+      end
+    end
+    
+    -- No exit code pattern found - the result IS the content
+    -- This happens when ExecProcess doesn't prepend exit code
+    if result:match("^%-%-") then
+      -- Looks like Lua code, treat as success
+      log("HTTP GET success (raw content), length: " .. #result)
+      return result, true
+    end
+    
+    -- Last resort: return as-is if it looks like valid content (long enough)
+    if #result > 100 then
+      log("HTTP GET success (fallback), length: " .. #result)
       return result, true
     end
   end
@@ -166,6 +188,29 @@ local function string_hash(str)
   return tostring(hash)
 end
 
+-- Parse semantic version string into comparable parts
+local function parse_version(ver_str)
+  if not ver_str then return {0, 0, 0} end
+  local major, minor, patch = ver_str:match("^(%d+)%.(%d+)%.(%d+)")
+  if major then
+    return {tonumber(major), tonumber(minor), tonumber(patch)}
+  end
+  -- Fallback for non-standard versions
+  local num = ver_str:match("^(%d+)")
+  return {tonumber(num) or 0, 0, 0}
+end
+
+-- Compare two version strings: returns true if v1 > v2
+local function version_greater(v1_str, v2_str)
+  local v1 = parse_version(v1_str)
+  local v2 = parse_version(v2_str)
+  for i = 1, 3 do
+    if v1[i] > v2[i] then return true end
+    if v1[i] < v2[i] then return false end
+  end
+  return false  -- Equal versions
+end
+
 -------------------------------------------------------------------------------
 -- Version Management
 -------------------------------------------------------------------------------
@@ -216,11 +261,14 @@ end
 local function check_for_updates_silent()
   log("Checking for updates...")
   
+  -- Always save check time to avoid repeated checks on failures
+  set_last_check_time(os.time())
+  
   local main_file = "fcp_tracker_main.lua"
   local url = get_raw_url(main_file)
   
-  -- Get remote file content
-  local remote_content, success = http_get(url, 15000)
+  -- Get remote file content (5 second timeout to avoid slow startup)
+  local remote_content, success = http_get(url, 5000)
   if not success or not remote_content then
     log("Failed to fetch remote file for update check")
     return false, nil
@@ -232,31 +280,19 @@ local function check_for_updates_silent()
     return false, nil
   end
   
-  -- Compare local file content against remote content
-  local cfg = AutoUpdater.config
-  local local_path = cfg.local_path or get_script_path()
-  local local_content = read_file(local_path .. main_file)
+  -- Extract versions for comparison
+  local remote_version = remote_content:match('SCRIPT_VERSION%s*=%s*"([^"]+)"')
+  local local_version = AutoUpdater.SCRIPT_VERSION
   
-  if not local_content then
-    log("Failed to read local file")
-    return false, nil
-  end
+  log("Local version: " .. (local_version or "unknown") .. ", Remote version: " .. (remote_version or "unknown"))
   
-  local remote_hash = string_hash(remote_content)
-  local local_hash = string_hash(local_content)
-  
-  log("Remote hash: " .. remote_hash .. ", Local hash: " .. local_hash)
-  
-  if remote_hash ~= local_hash then
-    -- Extract versions for comparison
-    local remote_version = remote_content:match('SCRIPT_VERSION%s*=%s*"([^"]+)"')
-    local local_version = local_content:match('SCRIPT_VERSION%s*=%s*"([^"]+)"')
-    log("Update available! Local: " .. (local_version or "unknown") .. " -> Remote: " .. (remote_version or "unknown"))
+  -- Only offer update if remote version is actually newer
+  if remote_version and local_version and version_greater(remote_version, local_version) then
+    log("Update available! " .. local_version .. " -> " .. remote_version)
     return true, remote_version
   end
   
-  log("No updates available")
-  set_last_check_time(os.time())
+  log("No updates available (local is same or newer)")
   return false, nil
 end
 
@@ -362,10 +398,9 @@ function AutoUpdater.run(show_message)
     if show_message then
       local response = reaper.MB(
         string.format(
-          "%s update available!\n\nNew version: %s\nCurrent version: %s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
-          AutoUpdater.config.script_name,
-          version or "unknown",
-          AutoUpdater.SCRIPT_VERSION
+          "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
+          AutoUpdater.SCRIPT_VERSION or "unknown",
+          version or "unknown"
         ),
         "Update Available",
         4  -- Yes/No
@@ -390,9 +425,54 @@ function AutoUpdater.run(show_message)
       return AutoUpdater.update()
     end
   elseif show_message then
-    if not AutoUpdater.config.silent_updates then
-      reaper.ShowConsoleMsg("[RBN Auto-Updater] Already up to date.\n")
+    reaper.MB("You are running the latest version (v" .. (AutoUpdater.SCRIPT_VERSION or "?") .. ").", "Up to Date", 0)
+  end
+  
+  return false
+end
+
+-- Force check and update (bypasses check interval) - use for manual "Check for Updates" button
+function AutoUpdater.force_run(show_message)
+  -- Enable debug logging for manual checks
+  local old_debug = AutoUpdater.config.debug
+  AutoUpdater.config.debug = true
+  
+  local has_update, version = AutoUpdater.force_check()
+  
+  AutoUpdater.config.debug = old_debug
+  
+  if has_update then
+    if show_message then
+      local response = reaper.MB(
+        string.format(
+          "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
+          AutoUpdater.SCRIPT_VERSION or "unknown",
+          version or "unknown"
+        ),
+        "Update Available",
+        4  -- Yes/No
+      )
+      
+      if response == 6 then  -- Yes
+        local success = AutoUpdater.update(function(updated, failed, files)
+          if updated > 0 then
+            reaper.MB(
+              string.format(
+                "Updated %d files successfully!\n\nPlease restart REAPER to apply the changes.",
+                updated
+              ),
+              "Update Complete",
+              0
+            )
+          end
+        end)
+        return success
+      end
+    else
+      return AutoUpdater.update()
     end
+  elseif show_message then
+    reaper.MB("You are running the latest version (v" .. (AutoUpdater.SCRIPT_VERSION or "?") .. ").", "Up to Date", 0)
   end
   
   return false

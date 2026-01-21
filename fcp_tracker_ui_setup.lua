@@ -920,7 +920,7 @@ function draw_setup_tab(ctx)
     ImGui.ImGui_SameLine(ctx, 140)
     if ImGui.ImGui_Button(ctx, "Check for Updates##update_btn") then
       if RBN_AUTO_UPDATER then
-        RBN_AUTO_UPDATER.run(true)  -- Show message dialog
+        RBN_AUTO_UPDATER.force_run(true)  -- Force check and show message dialog
       else
         reaper.ShowConsoleMsg("[RBN Progress Tracker] Auto-updater not loaded.\n")
       end
