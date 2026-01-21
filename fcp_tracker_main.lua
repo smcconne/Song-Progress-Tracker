@@ -22,8 +22,8 @@ local AutoUpdater = dofile(DIR .. "fcp_tracker_auto_updater.lua")
 RBN_AUTO_UPDATER = AutoUpdater  -- Make globally accessible for Setup tab
 if AutoUpdater then
   AutoUpdater.init(DIR)
-  -- TODO: Set your GitHub username and repo before release
-  AutoUpdater.set_repo("YOUR_GITHUB_USERNAME", "Archie-ReaScripts", "main")
+  -- GitHub repository settings
+  AutoUpdater.set_repo("smcconne", "Song-Progress-Tracker", "main")
   AutoUpdater.SCRIPT_VERSION = SCRIPT_VERSION
   
   -- Check for updates silently at startup (respects check_interval)

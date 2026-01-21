@@ -7,8 +7,8 @@ local AutoUpdater = {}
 -- Configuration
 AutoUpdater.config = {
   -- GitHub repository info
-  github_user = "smcconne",  -- TODO: Set your GitHub username
-  github_repo = "Song-Progress-Tracker",      -- TODO: Set your repo name
+  github_user = "smcconne",
+  github_repo = "Song-Progress-Tracker",
   branch = "main",
   
   -- Update check interval (seconds) - default 24 hours
@@ -19,7 +19,7 @@ AutoUpdater.config = {
   version_key = "FCP_UPDATER_LAST_CHECK",
   version_id_key = "FCP_UPDATER_VERSION_ID",
   
-  -- Files to update (relative to the Track folder)
+  -- Files to update (relative to the script folder)
   files = {
     "fcp_tracker_main.lua",
     "fcp_tracker_config.lua",
@@ -41,6 +41,7 @@ AutoUpdater.config = {
     "fcp_tracker_ui_track_utils.lua",
     "fcp_tracker_ui_widgets.lua",
     "fcp_tracker_auto_updater.lua",
+    "fcp_jump_regions.lua",
   },
   
   -- GitHub raw content base URL
@@ -57,7 +58,7 @@ AutoUpdater.config = {
 }
 
 -- Version info embedded in script (update this with each release)
-AutoUpdater.SCRIPT_VERSION = "1.0.0"
+AutoUpdater.SCRIPT_VERSION = "1.0.1"
 
 -------------------------------------------------------------------------------
 -- Utility Functions
@@ -202,7 +203,7 @@ end
 -- Build the raw GitHub URL for a file
 local function get_raw_url(filename)
   local cfg = AutoUpdater.config
-  return string.format("%s/%s/%s/%s/MAIN/Track/%s",
+  return string.format("%s/%s/%s/%s/%s",
     cfg.raw_base_url,
     cfg.github_user,
     cfg.github_repo,
