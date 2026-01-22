@@ -1,5 +1,5 @@
 -- fcp_tracker_util_selection.lua
--- Split from Switch RBN Previews Driver (background).lua
+-- Track selection helper functions
 
 function deselect_all_tracks()
   local n = reaper.CountTracks(0)

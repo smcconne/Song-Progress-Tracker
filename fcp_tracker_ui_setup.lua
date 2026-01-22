@@ -298,7 +298,7 @@ function PRC_insert_event(msg_bracketed)
   reaper.UpdateTimeline()
   
   -- Store the insert position for this project
-  reaper.SetProjExtState(0, "RBN_PROGRESS", "LAST_PRC_INSERT_TIME", tostring(t))
+  reaper.SetProjExtState(0, "FCP_PROGRESS", "LAST_PRC_INSERT_TIME", tostring(t))
   
   -- Set time selection around cursor and open MIDI editor
   set_time_selection_around(t)
@@ -607,7 +607,7 @@ local function get_event_mbt(event_name)
 end
 
 --------------------------------------------------------------------------------
--- Draw Setup Tab Content (public function called from rbn_progress_ui.lua)
+-- Draw Setup Tab Content (public function called from fcp_tracker_ui.lua)
 --------------------------------------------------------------------------------
 function draw_setup_tab(ctx)
   -- Main 2-column borderless table
@@ -811,7 +811,7 @@ function draw_setup_tab(ctx)
     local prc_label_w = ({ImGui.ImGui_CalcTextSize(ctx, prc_label)})[1]
     if ImGui.ImGui_Selectable(ctx, prc_label.."##prc_selectable", false, 0, prc_label_w, 0) then
       -- Get stored last insert position for this project
-      local _, stored_time_str = reaper.GetProjExtState(0, "RBN_PROGRESS", "LAST_PRC_INSERT_TIME")
+      local _, stored_time_str = reaper.GetProjExtState(0, "FCP_PROGRESS", "LAST_PRC_INSERT_TIME")
       local t = nil
       if stored_time_str and stored_time_str ~= "" then
         t = tonumber(stored_time_str)
@@ -909,22 +909,13 @@ function draw_setup_tab(ctx)
       reaper.SetExtState(EXT_NS, EXT_CMD_PRO_KEYS_PREVIEW, new_val5, true)
     end
     
-    -- Version and Update section
+    -- Version section
     ImGui.ImGui_Spacing(ctx)
     ImGui.ImGui_Separator(ctx)
     ImGui.ImGui_Spacing(ctx)
     
     local version_text = "v" .. (SCRIPT_VERSION or "?.?.?")
-    ImGui.ImGui_Text(ctx, "Version: " .. version_text)
-    
-    ImGui.ImGui_SameLine(ctx, 140)
-    if ImGui.ImGui_Button(ctx, "Check for Updates##update_btn") then
-      if RBN_AUTO_UPDATER then
-        RBN_AUTO_UPDATER.force_run(true)  -- Force check and show message dialog
-      else
-        reaper.ShowConsoleMsg("[RBN Progress Tracker] Auto-updater not loaded.\n")
-      end
-    end
+    ImGui.ImGui_Text(ctx, "Version: " .. version_text .. "  (Updates via ReaPack)")
     
     ImGui.ImGui_EndTable(ctx)
   end

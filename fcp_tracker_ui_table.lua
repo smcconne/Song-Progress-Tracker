@@ -1,6 +1,6 @@
 -- fcp_tracker_ui_table.lua
 -- Main region table rendering with scrolling and paint logic
--- Requires: rbn_ui_helpers.lua, rbn_ui_tabs.lua (for WANT_CENTER_ON_TAB, CENTER_DELAY_FRAMES)
+-- Requires: fcp_tracker_ui_helpers.lua, fcp_tracker_ui_tabs.lua (for WANT_CENTER_ON_TAB, CENTER_DELAY_FRAMES)
 
 local reaper = reaper
 local ImGui  = reaper

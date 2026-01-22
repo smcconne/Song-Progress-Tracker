@@ -48,8 +48,8 @@ VENUE_MODES  = { "Camera", "Lighting" }
 PITCH_RANGE = { Expert={96,100}, Hard={84,88}, Medium={72,76}, Easy={60,64} }
 
 -- Persistence for Progress Tracker
-EXTNAME          = "RBN_SECMAT_V1"
-JUMP_EXT_SECTION = "RBN_JUMP"
+EXTNAME          = "FCP_SECMAT_V1"
+JUMP_EXT_SECTION = "FCP_JUMP"
 JUMP_EXT_KEY     = "TARGET_REGION_ID"
 JUMP_EXT_PERSIST = false
 
@@ -87,7 +87,7 @@ DELAY_SMALL = 0.10
 FOCUS_DELAY = 0.06
 
 -- ExtState keys
-EXT_NS     = "RBN_PREVIEWS"
+EXT_NS     = "FCP_PREVIEWS"
 EXT_REQ    = "REQUEST"
 EXT_FOCUS  = "FOCUS"
 EXT_LINEUP = "LINEUP"

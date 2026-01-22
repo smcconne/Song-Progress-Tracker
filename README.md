@@ -114,15 +114,6 @@ Comprehensive Practice Section (PRC) event insertion tool:
 - **Center on tab switch** - Automatically centers view on current region
 - **Docking support** - Window can be docked in REAPER's docker
 
-### 🔄 Auto-Updater
-
-Built-in update mechanism:
-
-- Checks GitHub repository for new versions
-- Configurable check interval (default: 24 hours)
-- Silent background checks or interactive update prompts
-- Automatic backup of existing files before updating
-
 ## Requirements
 
 - **REAPER** v6.0+ with ReaImGui extension installed
@@ -131,6 +122,20 @@ Built-in update mechanism:
 - **SWS Extension** required for additional features
 
 ## Installation
+
+### Via ReaPack (Recommended)
+
+1. Install [ReaPack](https://reapack.com/) if you haven't already
+2. In REAPER, go to Extensions → ReaPack → Import repositories...
+3. Paste this URL:
+   ```
+   https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/index.xml
+   ```
+4. Go to Extensions → ReaPack → Browse packages
+5. Search for "Song Progress Tracker" and install
+6. Updates will be available automatically via Extensions → ReaPack → Synchronize packages
+
+### Manual Installation
 
 1. Copy all `fcp_tracker_*.lua` files to your REAPER Scripts folder
 2. In REAPER, go to Actions → Show action list
@@ -161,7 +166,7 @@ Built-in update mechanism:
 | `fcp_tracker_fxchain_geom.lua` | FX chain geometry handling |
 | `fcp_tracker_util_fs.lua` | File system utilities |
 | `fcp_tracker_util_selection.lua` | Selection snapshot/restore |
-| `fcp_tracker_auto_updater.lua` | GitHub-based auto-update system |
+| `fcp_jump_regions.lua` | Jump Regions navigation window |
 
 ## Usage Tips
 

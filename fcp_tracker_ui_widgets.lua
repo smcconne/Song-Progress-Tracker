@@ -1,11 +1,11 @@
 -- fcp_tracker_ui_widgets.lua
--- Custom button widgets for RBN Progress UI
+-- Custom button widgets for Song Progress UI
 
 local reaper = reaper
 local ImGui  = reaper
 
--- Requires globals from rbn_ui_helpers.lua: pct_scaled_u32, lighten_u32, COL_TEXT
--- Requires globals from rbn_preview_config.lua: BTN_W
+-- Requires globals from fcp_tracker_ui_helpers.lua: pct_scaled_u32, lighten_u32, COL_TEXT
+-- Requires globals from fcp_tracker_config.lua: BTN_W
 
 -- Computed locally, depends on BTN_W from config
 local PAIR_W = math.floor(BTN_W * 1.6 + 0.5)

@@ -2,7 +2,7 @@
 -- Inline preview FX + CUSTOM_NOTE_ORDER, no .RTrackTemplate I/O.
 
 -- Expected globals from other modules:
---   TRACKS                 (from rbn_preview_config.lua)
+--   TRACKS                 (from fcp_tracker_config.lua)
 --   find_track_by_name     (from util/focus helpers)
 --   snapshot_selection,
 --   restore_selection,

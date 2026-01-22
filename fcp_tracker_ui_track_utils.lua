@@ -1,5 +1,5 @@
 -- fcp_tracker_ui_track_utils.lua
--- Track, MIDI editor, and FX helper functions for RBN Progress UI
+-- Track, MIDI editor, and FX helper functions for Song Progress UI
 
 local reaper = reaper
 

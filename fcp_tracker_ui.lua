@@ -1,5 +1,5 @@
 -- fcp_tracker_ui.lua 
--- ImGui rendering coordinator for the RBN Song Progress Tracker.
+-- ImGui rendering coordinator for the Song Progress Tracker.
 -- Requires: fcp_tracker_ui_dock.lua, fcp_tracker_ui_tabs.lua, fcp_tracker_ui_header.lua, fcp_tracker_ui_table.lua
 
 local reaper = reaper
@@ -243,7 +243,7 @@ function Progress_UI_Init()
 end
 
 function Progress_UI_Draw()
-  local ctx = RBN_CTX
+  local ctx = FCP_CTX
   local PAIR_W = get_PAIR_W()
 
   ImGui.ImGui_SetNextWindowPos(ctx, 100, 100, ImGui.ImGui_Cond_FirstUseEver())

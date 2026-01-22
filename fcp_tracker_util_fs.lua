@@ -1,5 +1,5 @@
 -- fcp_tracker_util_fs.lua
--- Split from Switch RBN Previews Driver (background).lua
+-- File system and chunk parsing utilities
 
 -- RBN Preview VST identifier for searching in chunks
 local RBN_PREVIEW_VST_ID = '<VST "VSTi: RBN Preview (RBN)"'

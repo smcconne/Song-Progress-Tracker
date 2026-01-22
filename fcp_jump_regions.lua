@@ -9,7 +9,7 @@ local proj = 0
 local ME_GO_TO_EDIT_CURSOR = 40151
 local EXT_SECTION = "REGIONS_JUMP_UI"
 local EXT_KEY_JUMP = "JUMP_NOW"
-local EXT_SECTION_PT = "RBN_JUMP"
+local EXT_SECTION_PT = "FCP_JUMP"
 local EXT_KEY_PT_REGION_ID = "TARGET_REGION_ID"
 
 -- Module state

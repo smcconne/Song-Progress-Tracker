@@ -1,6 +1,6 @@
 -- fcp_tracker_ui_header.lua
 -- Header row with difficulty buttons, mode buttons, and region count
--- Requires: rbn_ui_widgets.lua, rbn_ui_helpers.lua
+-- Requires: fcp_tracker_ui_widgets.lua, fcp_tracker_ui_helpers.lua
 
 local reaper = reaper
 local ImGui  = reaper

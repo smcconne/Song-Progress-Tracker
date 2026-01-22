@@ -1,5 +1,5 @@
 -- fcp_tracker_ui_helpers.lua
--- Color helpers, measure helpers, and utility functions for RBN Progress UI
+-- Color helpers, measure helpers, and utility functions for Song Progress UI
 
 local reaper = reaper
 local ImGui  = reaper

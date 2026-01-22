@@ -1,5 +1,5 @@
 -- fcp_tracker_model.lua
--- Data + logic for the RBN Song Progress Tracker.
+-- Data + logic for the Song Progress Tracker.
 
 local reaper = reaper
 local ImGui  = reaper -- for color packing helpers only

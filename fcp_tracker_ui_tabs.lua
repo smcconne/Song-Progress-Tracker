@@ -1,6 +1,6 @@
 -- fcp_tracker_ui_tabs.lua
 -- Tab bar rendering and tab switching logic
--- Requires: rbn_ui_dock.lua, rbn_ui_helpers.lua
+-- Requires: fcp_tracker_ui_dock.lua, fcp_tracker_ui_helpers.lua
 
 local reaper = reaper
 local ImGui  = reaper
@@ -24,22 +24,22 @@ LAST_SEEN_TAB = current_tab
 
 function handle_tab_height_switch(ctx, new_tab)
   -- Skip during startup - main_loop handles initial screenset load
-  if RBN_STARTUP_MODE then return end
+  if FCP_STARTUP_MODE then return end
   
   -- Skip during project switch - model handles screenset load
   if PROJECT_SWITCH_MODE then return end
   
   -- Handle Jump Regions window visibility based on tab
-  if RBN_JUMP_REGIONS then
+  if FCP_JUMP_REGIONS then
     if new_tab == "Setup" then
       -- Close Jump Regions when switching to Setup
-      RBN_JUMP_REGIONS.stop()
+      FCP_JUMP_REGIONS.stop()
     elseif current_tab == "Setup" and new_tab ~= "Setup" then
       -- Open Jump Regions when switching from Setup to any other tab
-      RBN_JUMP_REGIONS.start()
-    elseif not RBN_JUMP_REGIONS.is_running() and new_tab ~= "Setup" then
+      FCP_JUMP_REGIONS.start()
+    elseif not FCP_JUMP_REGIONS.is_running() and new_tab ~= "Setup" then
       -- Ensure Jump Regions is running on non-Setup tabs
-      RBN_JUMP_REGIONS.start()
+      FCP_JUMP_REGIONS.start()
     end
   end
   
@@ -257,17 +257,17 @@ function tabs_row(ctx, redirect_focus_after_click)
             end
           end
           -- Only run Encore preview when switching to or from Vocals (not during startup)
-          if not RBN_STARTUP_MODE and (was_vocals or is_vocals) then
+          if not FCP_STARTUP_MODE and (was_vocals or is_vocals) then
             start_encore_vox_preview()
           end
           -- Run Venue Preview when switching to or from Venue tab (not during startup)
-          if not RBN_STARTUP_MODE and (was_venue or is_venue) then
+          if not FCP_STARTUP_MODE and (was_venue or is_venue) then
             start_venue_preview()
           end
           -- Run Pro Keys Preview when switching to or from Pro Keys mode (not during startup)
           local is_pro_keys = (name == "Keys" and PRO_KEYS_ACTIVE)
           local was_pro_keys = (last_tab == "Keys" and PRO_KEYS_ACTIVE)
-          if not RBN_STARTUP_MODE and (was_pro_keys or is_pro_keys) then
+          if not FCP_STARTUP_MODE and (was_pro_keys or is_pro_keys) then
             start_pro_keys_preview()
           end
           WANT_CENTER_ON_TAB = true

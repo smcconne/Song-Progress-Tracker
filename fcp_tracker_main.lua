@@ -1,8 +1,36 @@
+-- @description Song Progress Tracker
+-- @author FinestCardboardPearls
+-- @version 1.0.2
+-- @provides
+--   [nomain] fcp_tracker_config.lua
+--   [nomain] fcp_tracker_chunk_parse.lua
+--   [nomain] fcp_tracker_focus.lua
+--   [nomain] fcp_tracker_fxchain_geom.lua
+--   [nomain] fcp_tracker_layout.lua
+--   [nomain] fcp_tracker_templates.lua
+--   [nomain] fcp_tracker_util_fs.lua
+--   [nomain] fcp_tracker_util_selection.lua
+--   [nomain] fcp_tracker_model.lua
+--   [nomain] fcp_tracker_ui.lua
+--   [nomain] fcp_tracker_ui_dock.lua
+--   [nomain] fcp_tracker_ui_header.lua
+--   [nomain] fcp_tracker_ui_helpers.lua
+--   [nomain] fcp_tracker_ui_setup.lua
+--   [nomain] fcp_tracker_ui_table.lua
+--   [nomain] fcp_tracker_ui_tabs.lua
+--   [nomain] fcp_tracker_ui_track_utils.lua
+--   [nomain] fcp_tracker_ui_widgets.lua
+--   [nomain] fcp_jump_regions.lua
+-- @about
+--   Rock Band Song Progress Tracker for REAPER.
+--   Multi-tab interface for tracking song authoring progress,
+--   FX chain alignment, screenset management,
+--   and hybrid use of floating and inline MIDI editing.
+
 -- fcp_tracker_main.lua
 -- Rock Band Song Progress Tracker
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
--- Version info for auto-updater
 SCRIPT_VERSION = "1.0.2"
 
 local function script_dir()
@@ -16,46 +44,6 @@ local DIR = script_dir()
 
 -- Load config first to get EXT_NS and TABS
 dofile(DIR .. "fcp_tracker_config.lua")
-
--- Load auto-updater and check for updates (async, non-blocking)
-local AutoUpdater = dofile(DIR .. "fcp_tracker_auto_updater.lua")
-RBN_AUTO_UPDATER = AutoUpdater  -- Make globally accessible for Setup tab
-if AutoUpdater then
-  AutoUpdater.init(DIR)
-  -- GitHub repository settings
-  AutoUpdater.set_repo("smcconne", "Song-Progress-Tracker", "main")
-  AutoUpdater.SCRIPT_VERSION = SCRIPT_VERSION
-  
-  -- Check for updates at startup (async, respects check_interval)
-  AutoUpdater.check_async(function(has_update, new_version)
-    if has_update then
-      local response = reaper.MB(
-        string.format(
-          "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
-          SCRIPT_VERSION,
-          new_version or "unknown"
-        ),
-        "Update Available",
-        4  -- Yes/No
-      )
-      
-      if response == 6 then  -- Yes
-        AutoUpdater.update_async(function(updated, failed, files)
-          if updated > 0 then
-            reaper.MB(
-              string.format(
-                "Updated %d files successfully!\n\nPlease restart REAPER to apply the changes.",
-                updated
-              ),
-              "Update Complete",
-              0
-            )
-          end
-        end)
-      end
-    end
-  end)
-end
 
 -- Get current project reference
 local proj = select(2, reaper.EnumProjects(-1))
@@ -122,19 +110,19 @@ local to_load = {
 for _, fname in ipairs(to_load) do dofile(DIR .. fname) end
 
 -- Load Jump Regions module (integrated into progress tracker)
-RBN_JUMP_REGIONS = dofile(DIR .. "fcp_jump_regions.lua")
+FCP_JUMP_REGIONS = dofile(DIR .. "fcp_jump_regions.lua")
 
 -- One global ImGui context, created once with a unique label.
 -- Pass ConfigFlags_DockingEnable as second parameter
 local ImGui = reaper
-RBN_CTX = ImGui.ImGui_CreateContext(
-  (APP_NAME or "Song Progress Tracker") .. "##RBN",
+FCP_CTX = ImGui.ImGui_CreateContext(
+  (APP_NAME or "Song Progress Tracker") .. "##FCP",
   ImGui.ImGui_ConfigFlags_DockingEnable()
 )
 
 -- Initialize model + UI once
 Progress_Init(true)  -- skip_fx_align=true, startup has its own flow
-Progress_UI_Init(RBN_CTX)
+Progress_UI_Init(FCP_CTX)
 
 -- Hide all MIDI tracks from MCP (mixer control panel)
 local function hide_midi_tracks_from_mcp()
@@ -156,8 +144,8 @@ end
 hide_midi_tracks_from_mcp()
 
 -- Flag to suppress tab-switch side effects during startup
--- This is a global so rbn_progress_ui.lua can check it
-RBN_STARTUP_MODE = true
+-- This is a global so fcp_tracker_ui.lua can check it
+FCP_STARTUP_MODE = true
 
 -- Force the restored tab to be selected in the UI (for multiple frames)
 if restored_tab then
@@ -204,8 +192,8 @@ if restored_tab ~= "Vocals" and restored_tab ~= "Overdrive" and restored_tab ~= 
 end
 
 -- Start Jump Regions window if not on Setup tab
-if restored_tab ~= "Setup" and RBN_JUMP_REGIONS then
-  RBN_JUMP_REGIONS.start()
+if restored_tab ~= "Setup" and FCP_JUMP_REGIONS then
+  FCP_JUMP_REGIONS.start()
 end
 
 -- Save current tab, difficulty, and Pro Keys state on exit (project level)
@@ -220,28 +208,12 @@ local function save_state_on_exit()
 end
 reaper.atexit(save_state_on_exit)
 
--- Global flag to signal script should stop (used by auto-updater)
-local script_should_stop = false
-function RBN_STOP_SCRIPT()
-  script_should_stop = true
-  -- Stop Jump Regions window if running
-  if RBN_JUMP_REGIONS and RBN_JUMP_REGIONS.stop then
-    RBN_JUMP_REGIONS.stop()
-  end
-end
-
 -- Delay screenset loading until after window is established
 local startup_frames = 3
 
 -- Single combined loop: driver + UI
 local function main_loop()
-  -- Check if script should stop (e.g., after auto-update)
-  if script_should_stop then
-    save_state_on_exit()
-    return
-  end
-  
-  -- Driver tick (from rbn_preview_focus.lua)
+  -- Driver tick (from fcp_tracker_focus.lua)
   loop_tick()
   
   -- UI tick
@@ -270,12 +242,17 @@ local function main_loop()
         reaper.Main_OnCommand(40454, 0)  -- Screenset: Load window set #01
       end
       -- End startup mode - now tab switches can have normal side effects
-      RBN_STARTUP_MODE = false
+      FCP_STARTUP_MODE = false
     end
   end
   
   if open then
     reaper.defer(main_loop)
+  else
+    -- Progress Tracker closed - also stop Jump Regions window
+    if FCP_JUMP_REGIONS and FCP_JUMP_REGIONS.stop then
+      FCP_JUMP_REGIONS.stop()
+    end
   end
 end
 reaper.defer(main_loop)
