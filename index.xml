@@ -34,24 +34,24 @@ Features:
         <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_jump_regions.lua</source>
       </version>
     </reapack>
-    <reapack name="FCP Switch RBN Previews to Easy.lua" type="script">
+    <reapack name="FCP Switch to Easy Difficulty.lua" type="script">
       <version name="1.0.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Switch%20RBN%20Previews%20to%20Easy.lua</source>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Easy%20Difficulty.lua</source>
       </version>
     </reapack>
-    <reapack name="FCP Switch RBN Previews to Medium.lua" type="script">
+    <reapack name="FCP Switch to Medium Difficulty.lua" type="script">
       <version name="1.0.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Switch%20RBN%20Previews%20to%20Medium.lua</source>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Medium%20Difficulty.lua</source>
       </version>
     </reapack>
-    <reapack name="FCP Switch RBN Previews to Hard.lua" type="script">
+    <reapack name="FCP Switch to Hard Difficulty.lua" type="script">
       <version name="1.0.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Switch%20RBN%20Previews%20to%20Hard.lua</source>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Hard%20Difficulty.lua</source>
       </version>
     </reapack>
-    <reapack name="FCP Switch RBN Previews to Expert.lua" type="script">
+    <reapack name="FCP Switch to Expert Difficulty.lua" type="script">
       <version name="1.0.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Switch%20RBN%20Previews%20to%20Expert.lua</source>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Expert%20Difficulty.lua</source>
       </version>
     </reapack>
   </category>
