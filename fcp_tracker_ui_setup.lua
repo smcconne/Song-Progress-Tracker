@@ -306,6 +306,46 @@ function PRC_insert_event(msg_bracketed)
 end
 
 --------------------------------------------------------------------------------
+-- Region color mapping based on section keywords
+--------------------------------------------------------------------------------
+local PRC_REGION_COLORS = {
+  -- {keywords (lowercase), color}
+  -- Order matters: first match wins
+  {{"intro", "fade in"}, 0x8080ff},
+  {{"crescendo", "speed", "build", "enters"}, 0x80ff80},
+  {{"melody", "riff", "lick", "lead", "fill", "hook", "roll", "line"}, 0xff00f2},
+  {{"preverse", "postverse"}, 0x884400},
+  {{"verse"}, 0xff8000},
+  {{"prechorus", "postchorus"}, 0x004080},
+  {{"chorus"}, 0x0080ff},
+  {{"bridge"}, 0xff80c0},
+  {{"solo"}, 0xff0000},
+  {{"break", "release"}, 0x8000ff},
+  {{"outro", "bre", "ending", "fade out"}, 0x0000ff},
+  {{"jam", "vamp", "part", "soundscape", "tension", "space"}, 0x800080},
+  {{"ah", "yeah", "ooh", "prayer", "chant", "spoken word", "kick it"}, 0xcccccc},
+}
+
+-- Get region color based on section name keywords (case-insensitive)
+local function PRC_get_region_color(name)
+  local lower_name = name:lower()
+  for _, entry in ipairs(PRC_REGION_COLORS) do
+    local keywords, color = entry[1], entry[2]
+    for _, kw in ipairs(keywords) do
+      if lower_name:find(kw, 1, true) then  -- plain text search
+        -- Convert RGB to native format (BGR on Windows) and add enable bit
+        local r = (color >> 16) & 0xFF
+        local g = (color >> 8) & 0xFF
+        local b = color & 0xFF
+        local native_color = reaper.ColorToNative(r, g, b)
+        return native_color | 0x1000000
+      end
+    end
+  end
+  return 0  -- No color (use default)
+end
+
+--------------------------------------------------------------------------------
 -- Convert PRC events to regions
 --------------------------------------------------------------------------------
 function PRC_convert_to_regions()
@@ -394,8 +434,11 @@ function PRC_convert_to_regions()
       region_end = fallback_end
     end
     
+    -- Get color based on section name keywords
+    local region_color = PRC_get_region_color(prc.name)
+    
     -- Create region (isrgn=true for region)
-    reaper.AddProjectMarker2(0, true, region_start, region_end, prc.name, -1, 0)
+    reaper.AddProjectMarker2(0, true, region_start, region_end, prc.name, -1, region_color)
   end
   
   reaper.Undo_EndBlock2(0, 'Convert PRC events to regions', -1)
@@ -610,17 +653,11 @@ end
 -- Draw Setup Tab Content (public function called from fcp_tracker_ui.lua)
 --------------------------------------------------------------------------------
 function draw_setup_tab(ctx)
-  -- Main 2-column borderless table
-  local table_flags = ImGui.ImGui_TableFlags_None()
-  if ImGui.ImGui_BeginTable(ctx, "Setup_MainTable", 2, table_flags) then
-    ImGui.ImGui_TableSetupColumn(ctx, "LeftCol", ImGui.ImGui_TableColumnFlags_WidthFixed(), 136)
-    ImGui.ImGui_TableSetupColumn(ctx, "RightCol", ImGui.ImGui_TableColumnFlags_WidthStretch())
-    
-    ImGui.ImGui_TableNextRow(ctx)
-    
-    -- LEFT COLUMN: Event locations in a sub-table
-    ImGui.ImGui_TableNextColumn(ctx)
-    
+  -- Get available size for the child regions (returns width, height)
+  local _, avail_h = ImGui.ImGui_GetContentRegionAvail(ctx)
+  
+  -- LEFT COLUMN: Use a Child region to fill available height
+  if ImGui.ImGui_BeginChild(ctx, "LeftColumn", 136, avail_h, 0, ImGui.ImGui_WindowFlags_NoScrollbar()) then
     ImGui.ImGui_Text(ctx, "Essential Events:")
     
     local music_start_mbt = get_event_mbt("[music_start]") or "—"
@@ -740,9 +777,47 @@ function draw_setup_tab(ctx)
       ImGui.ImGui_EndTable(ctx)
     end
     
-    -- RIGHT COLUMN: Existing Setup tab content
-    ImGui.ImGui_TableNextColumn(ctx)
+    -- Calculate space needed for version info (separator + 2 text lines + spacing)
+    local line_height = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
+    local version_height = line_height * 2 + 10  -- 2 lines + separator/spacing
     
+    -- Get the child window's content height and set cursor to bottom
+    local child_h = ImGui.ImGui_GetWindowHeight(ctx)
+    local target_y = child_h - version_height
+    local current_y = ImGui.ImGui_GetCursorPosY(ctx)
+    
+    -- Only move down if there's room (version info stays at bottom)
+    if target_y > current_y then
+      ImGui.ImGui_SetCursorPosY(ctx, target_y)
+    end
+    
+    -- Version info at bottom of left column (no separator)
+    ImGui.ImGui_Spacing(ctx)
+    local version_text = "v" .. (SCRIPT_VERSION or "?.?.?")
+    ImGui.ImGui_Text(ctx, "Version: " .. version_text)
+    ImGui.ImGui_Text(ctx, "(Updates via ReaPack)")
+    
+    ImGui.ImGui_EndChild(ctx)
+  end
+  
+  -- Vertical separator after left column
+  ImGui.ImGui_SameLine(ctx)
+  local sep_x1, sep_y1 = ImGui.ImGui_GetCursorScreenPos(ctx)
+  local draw_list = ImGui.ImGui_GetWindowDrawList(ctx)
+  -- Use a semi-transparent gray for separator (AABBGGRR format)
+  local sep_color = 0x80808080
+  ImGui.ImGui_DrawList_AddLine(draw_list, sep_x1, sep_y1 + 4, sep_x1, sep_y1 + avail_h, sep_color, 1.0)
+  ImGui.ImGui_Dummy(ctx, 8, 0)  -- spacing for separator
+  
+  -- MIDDLE COLUMN: PRC Tools
+  ImGui.ImGui_SameLine(ctx)
+  
+  -- Fixed width for middle column (PRC tools)
+  local middle_w = 360
+  
+  if ImGui.ImGui_BeginChild(ctx, "MiddleColumn", middle_w, avail_h, 0, ImGui.ImGui_WindowFlags_NoScrollbar()) then
+    ImGui.ImGui_Text(ctx, "Create practice section events:")
+    ImGui.ImGui_Spacing(ctx)
     -- PRC Table: 3 columns x 2 rows (labels on top, combos on bottom)
     if ImGui.ImGui_BeginTable(ctx, "PRC_Table", 3, ImGui.ImGui_TableFlags_None()) then
       ImGui.ImGui_TableSetupColumn(ctx, "Section", ImGui.ImGui_TableColumnFlags_WidthFixed(), 120)
@@ -841,10 +916,24 @@ function draw_setup_tab(ctx)
     ImGui.ImGui_SameLine(ctx)
     if ImGui.ImGui_Button(ctx, "Convert All Practice Sections to Regions", 240, 0) then PRC_convert_to_regions() end
     
-    -- Separator before script command configuration
-    ImGui.ImGui_NewLine(ctx)
-    ImGui.ImGui_Separator(ctx)
+    ImGui.ImGui_EndChild(ctx)
+  end
+  
+  -- Vertical separator after middle column
+  ImGui.ImGui_SameLine(ctx)
+  local sep_x2, sep_y2 = ImGui.ImGui_GetCursorScreenPos(ctx)
+  ImGui.ImGui_DrawList_AddLine(draw_list, sep_x2, sep_y2 + 4, sep_x2, sep_y2 + avail_h, sep_color, 1.0)
+  ImGui.ImGui_Dummy(ctx, 8, 0)  -- spacing for separator
+  
+  -- RIGHT COLUMN: Action Command IDs
+  ImGui.ImGui_SameLine(ctx)
+  
+  -- Get remaining width for right column
+  local right_avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
+  
+  if ImGui.ImGui_BeginChild(ctx, "RightColumn", right_avail_w, avail_h, 0, ImGui.ImGui_WindowFlags_NoScrollbar()) then
     ImGui.ImGui_Text(ctx, "Paste Action Command IDs here:")
+    ImGui.ImGui_Spacing(ctx)
     
     -- Initialize buffers from ExtState if not already done
     if not SETUP_CMD_BUFFERS then
@@ -857,12 +946,12 @@ function draw_setup_tab(ctx)
       }
     end
     
-    local input_width = 320
+    local label_w = 120
     
     -- Encore Vox Preview
     ImGui.ImGui_Text(ctx, "Encore Vox Preview:")
-    ImGui.ImGui_SameLine(ctx, 140)
-    ImGui.ImGui_SetNextItemWidth(ctx, input_width)
+    ImGui.ImGui_SameLine(ctx, label_w)
+    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
     local changed1, new_val1 = ImGui.ImGui_InputText(ctx, "##encore_vox", SETUP_CMD_BUFFERS.encore_vox)
     if changed1 and new_val1 ~= SETUP_CMD_BUFFERS.encore_vox then
       SETUP_CMD_BUFFERS.encore_vox = new_val1
@@ -871,8 +960,8 @@ function draw_setup_tab(ctx)
     
     -- Lyrics Clipboard
     ImGui.ImGui_Text(ctx, "Lyrics Clipboard:")
-    ImGui.ImGui_SameLine(ctx, 140)
-    ImGui.ImGui_SetNextItemWidth(ctx, input_width)
+    ImGui.ImGui_SameLine(ctx, label_w)
+    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
     local changed2, new_val2 = ImGui.ImGui_InputText(ctx, "##lyrics_clip", SETUP_CMD_BUFFERS.lyrics_clip)
     if changed2 and new_val2 ~= SETUP_CMD_BUFFERS.lyrics_clip then
       SETUP_CMD_BUFFERS.lyrics_clip = new_val2
@@ -881,8 +970,8 @@ function draw_setup_tab(ctx)
     
     -- Spectracular (runs with Vocals tab)
     ImGui.ImGui_Text(ctx, "Spectracular Stereo:")
-    ImGui.ImGui_SameLine(ctx, 140)
-    ImGui.ImGui_SetNextItemWidth(ctx, input_width)
+    ImGui.ImGui_SameLine(ctx, label_w)
+    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
     local changed3, new_val3 = ImGui.ImGui_InputText(ctx, "##spectracular", SETUP_CMD_BUFFERS.spectracular)
     if changed3 and new_val3 ~= SETUP_CMD_BUFFERS.spectracular then
       SETUP_CMD_BUFFERS.spectracular = new_val3
@@ -891,8 +980,8 @@ function draw_setup_tab(ctx)
     
     -- Venue Preview (runs with Venue tab)
     ImGui.ImGui_Text(ctx, "Venue Preview:")
-    ImGui.ImGui_SameLine(ctx, 140)
-    ImGui.ImGui_SetNextItemWidth(ctx, input_width)
+    ImGui.ImGui_SameLine(ctx, label_w)
+    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
     local changed4, new_val4 = ImGui.ImGui_InputText(ctx, "##venue_preview", SETUP_CMD_BUFFERS.venue_preview)
     if changed4 and new_val4 ~= SETUP_CMD_BUFFERS.venue_preview then
       SETUP_CMD_BUFFERS.venue_preview = new_val4
@@ -901,23 +990,15 @@ function draw_setup_tab(ctx)
     
     -- Pro Keys Preview (runs with Pro Keys tab)
     ImGui.ImGui_Text(ctx, "Pro Keys Preview:")
-    ImGui.ImGui_SameLine(ctx, 140)
-    ImGui.ImGui_SetNextItemWidth(ctx, input_width)
+    ImGui.ImGui_SameLine(ctx, label_w)
+    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
     local changed5, new_val5 = ImGui.ImGui_InputText(ctx, "##pro_keys_preview", SETUP_CMD_BUFFERS.pro_keys_preview)
     if changed5 and new_val5 ~= SETUP_CMD_BUFFERS.pro_keys_preview then
       SETUP_CMD_BUFFERS.pro_keys_preview = new_val5
       reaper.SetExtState(EXT_NS, EXT_CMD_PRO_KEYS_PREVIEW, new_val5, true)
     end
     
-    -- Version section
-    ImGui.ImGui_Spacing(ctx)
-    ImGui.ImGui_Separator(ctx)
-    ImGui.ImGui_Spacing(ctx)
-    
-    local version_text = "v" .. (SCRIPT_VERSION or "?.?.?")
-    ImGui.ImGui_Text(ctx, "Version: " .. version_text .. "  (Updates via ReaPack)")
-    
-    ImGui.ImGui_EndTable(ctx)
+    ImGui.ImGui_EndChild(ctx)
   end
 end
 
