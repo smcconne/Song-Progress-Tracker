@@ -296,9 +296,211 @@ local function check_for_updates_silent()
   return false, nil
 end
 
--- Download and apply updates
+-------------------------------------------------------------------------------
+-- Async Download State Machine
+-------------------------------------------------------------------------------
+
+local async_state = {
+  active = false,
+  files_to_check = {},
+  current_file_index = 0,
+  temp_file = nil,
+  done_file = nil,
+  updated_files = {},
+  failed_files = {},
+  on_complete = nil,
+  local_path = nil,
+}
+
+-- Generate temp file paths
+local function get_temp_files()
+  local temp_dir = os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+  local base = temp_dir .. "/rbn_update_" .. tostring(os.time()) .. "_" .. tostring(math.random(10000, 99999))
+  return base .. ".tmp", base .. ".done"
+end
+
+-- Start async download of a single file to temp location with completion signal
+local function start_async_download(url, temp_file, done_file)
+  -- Delete any existing temp/done files first
+  os.remove(temp_file)
+  os.remove(done_file)
+  
+  local curl_cmd
+  if reaper.GetOS():match("Win") then
+    -- Windows: run curl then create done file when complete
+    -- Using cmd /c with && to chain commands
+    curl_cmd = string.format('start /b cmd /c "curl -s -L --max-time 60 "%s" > "%s" && echo done > "%s""', 
+      url, temp_file, done_file)
+  else
+    -- macOS/Linux: use ; to chain commands  
+    curl_cmd = string.format('(curl -s -L --max-time 60 "%s" > "%s" ; echo done > "%s") &', 
+      url, temp_file, done_file)
+  end
+  
+  log("Starting async download: " .. url)
+  os.execute(curl_cmd)
+end
+
+-- Check if download is complete (done file exists)
+local function check_download_complete(temp_file, done_file)
+  -- Check if done file exists
+  local f = io.open(done_file, "r")
+  if not f then return false, nil end
+  f:close()
+  
+  -- Done file exists, read the actual content
+  local content_file = io.open(temp_file, "rb")
+  if not content_file then return false, nil end
+  
+  local content = content_file:read("*all")
+  content_file:close()
+  
+  -- Verify it looks like Lua code
+  if content and #content > 50 and content:match("^%-%-") then
+    return true, content
+  end
+  
+  return false, nil
+end
+
+-- Normalize content for comparison (normalize line endings and strip trailing whitespace)
+local function normalize_content(content)
+  if not content then return "" end
+  -- Convert CRLF to LF, then strip trailing whitespace
+  local normalized = content:gsub("\r\n", "\n")
+  normalized = normalized:gsub("\r", "\n")
+  normalized = normalized:gsub("%s+$", "")
+  return normalized
+end
+
+-- Process current file in async state machine
+local function process_current_file()
+  if not async_state.active then return end
+  
+  local cfg = AutoUpdater.config
+  local index = async_state.current_file_index
+  local files = async_state.files_to_check
+  
+  if index > #files then
+    -- All files processed
+    async_state.active = false
+    
+    -- Cleanup temp files
+    if async_state.temp_file then os.remove(async_state.temp_file) end
+    if async_state.done_file then os.remove(async_state.done_file) end
+    
+    set_last_check_time(os.time())
+    
+    log(string.format("Async update complete: %d files updated, %d failed", 
+      #async_state.updated_files, #async_state.failed_files))
+    
+    if async_state.on_complete then
+      async_state.on_complete(#async_state.updated_files, #async_state.failed_files, async_state.updated_files)
+    end
+    return
+  end
+  
+  local filename = files[index]
+  local url = get_raw_url(filename)
+  local local_file = async_state.local_path .. filename
+  
+  -- Start download for this file
+  async_state.temp_file, async_state.done_file = get_temp_files()
+  start_async_download(url, async_state.temp_file, async_state.done_file)
+  
+  -- Start polling for completion
+  local poll_count = 0
+  local max_polls = 300  -- 30 seconds max per file
+  
+  local function poll_download()
+    -- Poll multiple times per defer cycle to speed up when REAPER is focused
+    -- (defer runs slower when focused due to UI frame rate)
+    for _ = 1, 10 do
+      poll_count = poll_count + 1
+      
+      local complete, content = check_download_complete(async_state.temp_file, async_state.done_file)
+      
+      if complete then
+        -- Download finished - compare with local
+        local local_content = read_file(local_file)
+        
+        -- Normalize both for comparison
+        local norm_remote = normalize_content(content)
+        local norm_local = normalize_content(local_content)
+        
+        -- Log progress
+        reaper.ShowConsoleMsg(string.format("[Update] %d/%d: %s ... ", 
+          index, #files, filename))
+        
+        -- Only update if content is actually different
+        if norm_remote ~= norm_local then
+          if write_file(local_file, content) then
+            table.insert(async_state.updated_files, filename)
+            reaper.ShowConsoleMsg("UPDATED\n")
+          else
+            table.insert(async_state.failed_files, filename)
+            reaper.ShowConsoleMsg("FAILED\n")
+          end
+        else
+          reaper.ShowConsoleMsg("unchanged\n")
+        end
+        
+        -- Clean up temp files
+        os.remove(async_state.temp_file)
+        os.remove(async_state.done_file)
+        
+        -- Move to next file
+        async_state.current_file_index = index + 1
+        reaper.defer(process_current_file)
+        return  -- Exit the poll loop
+        
+      elseif poll_count >= max_polls then
+        -- Timeout - skip this file
+        reaper.ShowConsoleMsg(string.format("[Update] %d/%d: %s ... TIMEOUT\n", 
+          index, #files, filename))
+        table.insert(async_state.failed_files, filename)
+        os.remove(async_state.temp_file)
+        os.remove(async_state.done_file)
+        async_state.current_file_index = index + 1
+        reaper.defer(process_current_file)
+        return  -- Exit the poll loop
+      end
+    end
+    
+    -- Still waiting, defer again
+    reaper.defer(poll_download)
+  end
+  
+  -- Start polling after a short delay
+  reaper.defer(poll_download)
+end
+
+-- Start async update process
+local function apply_updates_async(on_complete)
+  log("Starting async update...")
+  
+  local cfg = AutoUpdater.config
+  
+  async_state.active = true
+  async_state.files_to_check = {}
+  async_state.current_file_index = 1
+  async_state.updated_files = {}
+  async_state.failed_files = {}
+  async_state.on_complete = on_complete
+  async_state.local_path = cfg.local_path or get_script_path()
+  
+  -- Copy file list
+  for _, f in ipairs(cfg.files) do
+    table.insert(async_state.files_to_check, f)
+  end
+  
+  -- Start processing
+  reaper.defer(process_current_file)
+end
+
+-- Legacy synchronous apply_updates (kept for compatibility but not recommended)
 local function apply_updates(on_complete)
-  log("Applying updates...")
+  log("Applying updates (sync mode - not recommended)...")
   
   local cfg = AutoUpdater.config
   local local_path = cfg.local_path or get_script_path()
@@ -313,28 +515,24 @@ local function apply_updates(on_complete)
     local content, success = http_get(url, 30000)
     
     if success and content and content:match("^%-%-") then
-      -- Backup old file
-      local old_content = read_file(local_file)
-      if old_content then
-        write_file(local_file .. ".bak", old_content)
-      end
+      -- Compare with local content
+      local local_content = read_file(local_file)
       
-      -- Write new file
-      if write_file(local_file, content) then
-        table.insert(updated_files, filename)
+      if normalize_content(content) ~= normalize_content(local_content) then
+        -- Write new file (no backup)
+        if write_file(local_file, content) then
+          table.insert(updated_files, filename)
+          log("Updated (changed): " .. filename)
+        else
+          table.insert(failed_files, filename)
+        end
       else
-        table.insert(failed_files, filename)
+        log("Skipped (unchanged): " .. filename)
       end
     else
       -- File might not exist in repo (optional), skip silently
       log("Skipped (not found or invalid): " .. filename)
     end
-  end
-  
-  -- Update stored version hash
-  local main_content = read_file(local_path .. "fcp_tracker_main.lua")
-  if main_content then
-    set_stored_version_hash(string_hash(main_content))
   end
   
   set_last_check_time(os.time())
@@ -384,13 +582,36 @@ function AutoUpdater.force_check()
   return has_update, version
 end
 
--- Apply available updates
+-- Async check for updates - calls callback(has_update, version) when done
+-- This is non-blocking and respects check_interval
+function AutoUpdater.check_async(callback)
+  if not is_due_for_check() then
+    log("Skipping check - not due yet")
+    if callback then callback(false, nil) end
+    return
+  end
+  
+  -- For the version check, we use synchronous HTTP since it's fast (5 second timeout)
+  -- The actual file downloads use async
+  local has_update, version = check_for_updates_silent()
+  if callback then
+    callback(has_update, version)
+  end
+end
+
+-- Apply available updates (async version - recommended)
+-- on_complete receives: (updated_count, failed_count, file_list)
+function AutoUpdater.update_async(on_complete)
+  apply_updates_async(on_complete)
+end
+
+-- Apply available updates (sync version - blocks REAPER, avoid if possible)
 -- Returns: success (bool), count of files updated
 function AutoUpdater.update(on_complete)
   return apply_updates(on_complete)
 end
 
--- Check and update in one call
+-- Check and update in one call (async)
 function AutoUpdater.run(show_message)
   local has_update, version = AutoUpdater.check()
   
@@ -398,7 +619,7 @@ function AutoUpdater.run(show_message)
     if show_message then
       local response = reaper.MB(
         string.format(
-          "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
+          "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(The script will close after updating. Please restart it.)",
           AutoUpdater.SCRIPT_VERSION or "unknown",
           version or "unknown"
         ),
@@ -407,22 +628,35 @@ function AutoUpdater.run(show_message)
       )
       
       if response == 6 then  -- Yes
-        local success = AutoUpdater.update(function(updated, failed, files)
+        AutoUpdater.update_async(function(updated, failed, files)
           if updated > 0 then
             reaper.MB(
               string.format(
-                "Updated %d files successfully!\n\nPlease restart REAPER to apply the changes.",
+                "Updated %d file(s) successfully!\n\nThe script will now close. Please start it again to use the new version.",
                 updated
               ),
               "Update Complete",
               0
             )
+            -- Signal to stop the script
+            if RBN_STOP_SCRIPT then
+              RBN_STOP_SCRIPT()
+            end
+          elseif failed > 0 then
+            reaper.MB(
+              string.format("Update failed for %d file(s). Please try again later.", failed),
+              "Update Failed",
+              0
+            )
+          else
+            reaper.MB("No files needed updating - you already have the latest version.", "Up to Date", 0)
           end
         end)
-        return success
+        return true
       end
     else
-      return AutoUpdater.update()
+      AutoUpdater.update_async()
+      return true
     end
   elseif show_message then
     reaper.MB("You are running the latest version (v" .. (AutoUpdater.SCRIPT_VERSION or "?") .. ").", "Up to Date", 0)
@@ -445,7 +679,7 @@ function AutoUpdater.force_run(show_message)
     if show_message then
       local response = reaper.MB(
         string.format(
-          "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
+          "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(The script will close after updating. Please restart it.)",
           AutoUpdater.SCRIPT_VERSION or "unknown",
           version or "unknown"
         ),
@@ -454,22 +688,35 @@ function AutoUpdater.force_run(show_message)
       )
       
       if response == 6 then  -- Yes
-        local success = AutoUpdater.update(function(updated, failed, files)
+        AutoUpdater.update_async(function(updated, failed, files)
           if updated > 0 then
             reaper.MB(
               string.format(
-                "Updated %d files successfully!\n\nPlease restart REAPER to apply the changes.",
+                "Updated %d file(s) successfully!\n\nThe script will now close. Please start it again to use the new version.",
                 updated
               ),
               "Update Complete",
               0
             )
+            -- Signal to stop the script
+            if RBN_STOP_SCRIPT then
+              RBN_STOP_SCRIPT()
+            end
+          elseif failed > 0 then
+            reaper.MB(
+              string.format("Update failed for %d file(s). Please try again later.", failed),
+              "Update Failed",
+              0
+            )
+          else
+            reaper.MB("No files needed updating - you already have the latest version.", "Up to Date", 0)
           end
         end)
-        return success
+        return true
       end
     else
-      return AutoUpdater.update()
+      AutoUpdater.update_async()
+      return true
     end
   elseif show_message then
     reaper.MB("You are running the latest version (v" .. (AutoUpdater.SCRIPT_VERSION or "?") .. ").", "Up to Date", 0)

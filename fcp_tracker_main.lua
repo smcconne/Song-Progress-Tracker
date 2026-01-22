@@ -17,7 +17,7 @@ local DIR = script_dir()
 -- Load config first to get EXT_NS and TABS
 dofile(DIR .. "fcp_tracker_config.lua")
 
--- Load auto-updater and check for updates (optional, silent by default)
+-- Load auto-updater and check for updates (async, non-blocking)
 local AutoUpdater = dofile(DIR .. "fcp_tracker_auto_updater.lua")
 RBN_AUTO_UPDATER = AutoUpdater  -- Make globally accessible for Setup tab
 if AutoUpdater then
@@ -26,34 +26,35 @@ if AutoUpdater then
   AutoUpdater.set_repo("smcconne", "Song-Progress-Tracker", "main")
   AutoUpdater.SCRIPT_VERSION = SCRIPT_VERSION
   
-  -- Check for updates at startup (respects check_interval)
-  local has_update, new_version = AutoUpdater.check()
-  if has_update then
-    local response = reaper.MB(
-      string.format(
-        "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
-        SCRIPT_VERSION,
-        new_version or "unknown"
-      ),
-      "Update Available",
-      4  -- Yes/No
-    )
-    
-    if response == 6 then  -- Yes
-      AutoUpdater.update(function(updated, failed, files)
-        if updated > 0 then
-          reaper.MB(
-            string.format(
-              "Updated %d files successfully!\n\nPlease restart REAPER to apply the changes.",
-              updated
-            ),
-            "Update Complete",
-            0
-          )
-        end
-      end)
+  -- Check for updates at startup (async, respects check_interval)
+  AutoUpdater.check_async(function(has_update, new_version)
+    if has_update then
+      local response = reaper.MB(
+        string.format(
+          "Detected a newer version of the Song Progress Tracker.\n\nYou are on: v%s\nLatest version: v%s\n\nWould you like to update now?\n\n(REAPER will need to be restarted after updating)",
+          SCRIPT_VERSION,
+          new_version or "unknown"
+        ),
+        "Update Available",
+        4  -- Yes/No
+      )
+      
+      if response == 6 then  -- Yes
+        AutoUpdater.update_async(function(updated, failed, files)
+          if updated > 0 then
+            reaper.MB(
+              string.format(
+                "Updated %d files successfully!\n\nPlease restart REAPER to apply the changes.",
+                updated
+              ),
+              "Update Complete",
+              0
+            )
+          end
+        end)
+      end
     end
-  end
+  end)
 end
 
 -- Get current project reference
@@ -219,11 +220,27 @@ local function save_state_on_exit()
 end
 reaper.atexit(save_state_on_exit)
 
+-- Global flag to signal script should stop (used by auto-updater)
+local script_should_stop = false
+function RBN_STOP_SCRIPT()
+  script_should_stop = true
+  -- Stop Jump Regions window if running
+  if RBN_JUMP_REGIONS and RBN_JUMP_REGIONS.stop then
+    RBN_JUMP_REGIONS.stop()
+  end
+end
+
 -- Delay screenset loading until after window is established
 local startup_frames = 3
 
 -- Single combined loop: driver + UI
 local function main_loop()
+  -- Check if script should stop (e.g., after auto-update)
+  if script_should_stop then
+    save_state_on_exit()
+    return
+  end
+  
   -- Driver tick (from rbn_preview_focus.lua)
   loop_tick()
   
