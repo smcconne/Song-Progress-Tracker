@@ -1,4 +1,4 @@
--- @description Song Progress Tracker
+-- @description FCP Song Progress Tracker
 -- @author FinestCardboardPearls
 -- @version 1.0.2
 -- @provides
@@ -211,8 +211,28 @@ reaper.atexit(save_state_on_exit)
 -- Delay screenset loading until after window is established
 local startup_frames = 3
 
+-- Handle FCP_PREVIEWS signal for Vocals tab difficulty switching
+local function check_previews_signal()
+  local request = reaper.GetExtState("FCP_PREVIEWS", "REQUEST")
+  if request and request ~= "" then
+    reaper.DeleteExtState("FCP_PREVIEWS", "REQUEST", false)
+    -- Only switch VOCALS_MODE if on Vocals tab
+    if current_tab == "Vocals" then
+      local mode_map = { EXPERT="H1", HARD="H2", MEDIUM="H3", EASY="V" }
+      local new_mode = mode_map[request]
+      if new_mode and VOCALS_MODE ~= new_mode then
+        VOCALS_MODE = new_mode
+        select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE], 40818, 40726)
+      end
+    end
+  end
+end
+
 -- Single combined loop: driver + UI
 local function main_loop()
+  -- Check for FCP_PREVIEWS signal (Vocals tab difficulty switching)
+  check_previews_signal()
+  
   -- Driver tick (from fcp_tracker_focus.lua)
   loop_tick()
   

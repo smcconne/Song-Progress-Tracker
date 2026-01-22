@@ -308,6 +308,125 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
             
             reaper.defer(redirect_focus_after_click)
           end
+          
+          -- Right-click: cycle all cells for this difficulty
+          if ImGui.ImGui_IsItemClicked(ctx, 1) then
+            -- Pro Keys uses separate STATE_PRO_KEYS table with single-letter keys
+            if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+              local diff_key = k  -- "X", "H", "M", "E"
+              local row = STATE_PRO_KEYS and STATE_PRO_KEYS[diff_key]
+              if row then
+                -- Count cells in each state
+                local has_not_started = false
+                local has_in_progress = false
+                local has_complete = false
+                local all_not_started = true
+                local all_empty = true
+                
+                for r = 1, #REGIONS do
+                  local st = row[r] or 0
+                  if st == 0 then has_not_started = true
+                  elseif st == 1 then has_in_progress = true; all_not_started = false; all_empty = false
+                  elseif st == 2 then has_complete = true; all_not_started = false; all_empty = false
+                  elseif st == 3 then all_not_started = false  -- Empty
+                  end
+                  if st ~= 3 then all_empty = false end
+                  if st ~= 0 then all_not_started = false end
+                end
+                
+                -- Apply state changes based on priority and save each cell
+                if all_empty then
+                  for r = 1, #REGIONS do
+                    row[r] = 0
+                    save_pro_keys_cell_state(diff_key, r, 0)
+                  end
+                elseif all_not_started then
+                  for r = 1, #REGIONS do
+                    row[r] = 3
+                    save_pro_keys_cell_state(diff_key, r, 3)
+                  end
+                elseif has_not_started then
+                  for r = 1, #REGIONS do
+                    if (row[r] or 0) == 0 then
+                      row[r] = 3
+                      save_pro_keys_cell_state(diff_key, r, 3)
+                    end
+                  end
+                elseif has_in_progress then
+                  for r = 1, #REGIONS do
+                    if (row[r] or 0) == 1 then
+                      row[r] = 2
+                      save_pro_keys_cell_state(diff_key, r, 2)
+                    end
+                  end
+                elseif has_complete then
+                  for r = 1, #REGIONS do
+                    if (row[r] or 0) == 2 then
+                      row[r] = 1
+                      save_pro_keys_cell_state(diff_key, r, 1)
+                    end
+                  end
+                end
+              end
+            else
+              -- Standard instrument tabs use STATE[tab][diff]
+              local diff_name = toD[k]
+              local row = STATE[current_tab] and STATE[current_tab][diff_name]
+              if row then
+                -- Count cells in each state
+                local has_not_started = false
+                local has_in_progress = false
+                local has_complete = false
+                local all_not_started = true
+                local all_empty = true
+                
+                for r = 1, #REGIONS do
+                  local st = row[r] or 0
+                  if st == 0 then has_not_started = true
+                  elseif st == 1 then has_in_progress = true; all_not_started = false; all_empty = false
+                  elseif st == 2 then has_complete = true; all_not_started = false; all_empty = false
+                  elseif st == 3 then all_not_started = false  -- Empty
+                  end
+                  if st ~= 3 then all_empty = false end
+                  if st ~= 0 then all_not_started = false end
+                end
+                
+                -- Apply state changes based on priority and save each cell
+                if all_empty then
+                  for r = 1, #REGIONS do
+                    row[r] = 0
+                    save_cell_state(current_tab, diff_name, r, 0)
+                  end
+                elseif all_not_started then
+                  for r = 1, #REGIONS do
+                    row[r] = 3
+                    save_cell_state(current_tab, diff_name, r, 3)
+                  end
+                elseif has_not_started then
+                  for r = 1, #REGIONS do
+                    if (row[r] or 0) == 0 then
+                      row[r] = 3
+                      save_cell_state(current_tab, diff_name, r, 3)
+                    end
+                  end
+                elseif has_in_progress then
+                  for r = 1, #REGIONS do
+                    if (row[r] or 0) == 1 then
+                      row[r] = 2
+                      save_cell_state(current_tab, diff_name, r, 2)
+                    end
+                  end
+                elseif has_complete then
+                  for r = 1, #REGIONS do
+                    if (row[r] or 0) == 2 then
+                      row[r] = 1
+                      save_cell_state(current_tab, diff_name, r, 1)
+                    end
+                  end
+                end
+              end
+            end
+          end
         end
 
         -- Pair buttons (hide HOPOs/Trills when in Pro Keys mode)

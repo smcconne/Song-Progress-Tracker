@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <index version="1" name="FinestCardboardPearls Scripts">
   <category name="Song Progress Tracker">
-    <reapack name="Song Progress Tracker.lua" type="script">
-      <version name="1.0.2" author="smcconne">
+    <reapack name="FCP Song Progress Tracker.lua" type="script">
+      <version name="1.0.2" author="FinestCardboardPearls">
         <changelog><![CDATA[Initial ReaPack release
 
 Features:
@@ -32,6 +32,26 @@ Features:
         <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_track_utils.lua</source>
         <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_widgets.lua</source>
         <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_jump_regions.lua</source>
+      </version>
+    </reapack>
+    <reapack name="FCP Switch RBN Previews to Easy.lua" type="script">
+      <version name="1.0.0" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Switch%20RBN%20Previews%20to%20Easy.lua</source>
+      </version>
+    </reapack>
+    <reapack name="FCP Switch RBN Previews to Medium.lua" type="script">
+      <version name="1.0.0" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Switch%20RBN%20Previews%20to%20Medium.lua</source>
+      </version>
+    </reapack>
+    <reapack name="FCP Switch RBN Previews to Hard.lua" type="script">
+      <version name="1.0.0" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Switch%20RBN%20Previews%20to%20Hard.lua</source>
+      </version>
+    </reapack>
+    <reapack name="FCP Switch RBN Previews to Expert.lua" type="script">
+      <version name="1.0.0" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Switch%20RBN%20Previews%20to%20Expert.lua</source>
       </version>
     </reapack>
   </category>

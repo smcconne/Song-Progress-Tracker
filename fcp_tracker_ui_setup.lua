@@ -659,6 +659,8 @@ function draw_setup_tab(ctx)
   -- LEFT COLUMN: Use a Child region to fill available height
   if ImGui.ImGui_BeginChild(ctx, "LeftColumn", 136, avail_h, 0, ImGui.ImGui_WindowFlags_NoScrollbar()) then
     ImGui.ImGui_Text(ctx, "Essential Events:")
+    ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Spacing(ctx)
     
     local music_start_mbt = get_event_mbt("[music_start]") or "—"
     local music_end_mbt = get_event_mbt("[music_end]") or "—"
@@ -818,6 +820,7 @@ function draw_setup_tab(ctx)
   if ImGui.ImGui_BeginChild(ctx, "MiddleColumn", middle_w, avail_h, 0, ImGui.ImGui_WindowFlags_NoScrollbar()) then
     ImGui.ImGui_Text(ctx, "Create practice section events:")
     ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Spacing(ctx)
     -- PRC Table: 3 columns x 2 rows (labels on top, combos on bottom)
     if ImGui.ImGui_BeginTable(ctx, "PRC_Table", 3, ImGui.ImGui_TableFlags_None()) then
       ImGui.ImGui_TableSetupColumn(ctx, "Section", ImGui.ImGui_TableColumnFlags_WidthFixed(), 120)
@@ -904,16 +907,23 @@ function draw_setup_tab(ctx)
     if ImGui.ImGui_IsItemHovered(ctx) then
       ImGui.ImGui_SetTooltip(ctx, "Go to latest-added Practice Section event")
     end
+    ImGui.ImGui_Spacing(ctx)
     if ok then
       if ImGui.ImGui_Button(ctx, "Insert", 100, 0) then PRC_insert_event('['..tok2..']') end
-      ImGui.ImGui_SameLine(ctx)
       if ImGui.ImGui_IsKeyPressed(ctx, ImGui.ImGui_Key_Enter()) then PRC_insert_event('['..tok2..']') end
     else
       ImGui.ImGui_BeginDisabled(ctx)
       ImGui.ImGui_Button(ctx, "Insert", 100, 0)
       ImGui.ImGui_EndDisabled(ctx)
     end
-    ImGui.ImGui_SameLine(ctx)
+    
+    ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Text(ctx, "Convert to Regions:")
+    ImGui.ImGui_Spacing(ctx)
     if ImGui.ImGui_Button(ctx, "Convert All Practice Sections to Regions", 240, 0) then PRC_convert_to_regions() end
     
     ImGui.ImGui_EndChild(ctx)
@@ -933,6 +943,7 @@ function draw_setup_tab(ctx)
   
   if ImGui.ImGui_BeginChild(ctx, "RightColumn", right_avail_w, avail_h, 0, ImGui.ImGui_WindowFlags_NoScrollbar()) then
     ImGui.ImGui_Text(ctx, "Paste Action Command IDs here:")
+    ImGui.ImGui_Spacing(ctx)
     ImGui.ImGui_Spacing(ctx)
     
     -- Initialize buffers from ExtState if not already done
