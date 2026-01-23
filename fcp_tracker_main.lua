@@ -250,7 +250,9 @@ local function main_loop()
     startup_frames = startup_frames - 1
     if startup_frames == 0 then
       -- Load the appropriate screenset once
-      if current_tab == "Vocals" then
+      if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+        reaper.Main_OnCommand(40458, 0)  -- Screenset: Load window set #05 (Pro Keys)
+      elseif current_tab == "Vocals" then
         reaper.Main_OnCommand(40455, 0)  -- Screenset: Load window set #02
       elseif current_tab == "Overdrive" then
         reaper.Main_OnCommand(40456, 0)  -- Screenset: Load window set #03

@@ -13,25 +13,25 @@ Features:
 - Template management for drum/vocal/keys tracks
 ]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_main.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_config.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_chunk_parse.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_focus.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_fxchain_geom.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_layout.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_templates.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_util_fs.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_util_selection.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_model.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_dock.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_header.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_helpers.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_setup.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_table.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_tabs.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_track_utils.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_widgets.lua</source>
-        <source>https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_jump_regions.lua</source>
+        <source file="fcp_tracker_config.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_config.lua</source>
+        <source file="fcp_tracker_chunk_parse.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_chunk_parse.lua</source>
+        <source file="fcp_tracker_focus.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_focus.lua</source>
+        <source file="fcp_tracker_fxchain_geom.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_fxchain_geom.lua</source>
+        <source file="fcp_tracker_layout.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_layout.lua</source>
+        <source file="fcp_tracker_templates.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_templates.lua</source>
+        <source file="fcp_tracker_util_fs.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_util_fs.lua</source>
+        <source file="fcp_tracker_util_selection.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_util_selection.lua</source>
+        <source file="fcp_tracker_model.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_model.lua</source>
+        <source file="fcp_tracker_ui.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui.lua</source>
+        <source file="fcp_tracker_ui_dock.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_dock.lua</source>
+        <source file="fcp_tracker_ui_header.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_header.lua</source>
+        <source file="fcp_tracker_ui_helpers.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_helpers.lua</source>
+        <source file="fcp_tracker_ui_setup.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_setup.lua</source>
+        <source file="fcp_tracker_ui_table.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_table.lua</source>
+        <source file="fcp_tracker_ui_tabs.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_tabs.lua</source>
+        <source file="fcp_tracker_ui_track_utils.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_track_utils.lua</source>
+        <source file="fcp_tracker_ui_widgets.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_widgets.lua</source>
+        <source file="fcp_jump_regions.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_jump_regions.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Switch to Easy Difficulty.lua" type="script">

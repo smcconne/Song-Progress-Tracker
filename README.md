@@ -81,12 +81,13 @@ A unique bird's-eye view of overdrive phrase placement:
 
 ### 📐 Screenset Integration
 
-Uses REAPER screensets 1-4 for quick context switching:
+Uses REAPER screensets 1-5 for quick context switching:
 
 - **Screenset 1** - Instrument tabs (5-lane view with FX windows)
 - **Screenset 2** - Vocals tab layout
 - **Screenset 3** - Overdrive tab layout
 - **Screenset 4** - Venue tab layout
+- **Screenset 5** - Pro Keys tab layout
 
 **Save Screenset** button saves the current window layout to the appropriate screenset. Screensets auto-load when switching between tab categories.
 

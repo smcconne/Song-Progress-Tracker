@@ -36,7 +36,10 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
   -- Screenset button
   do
     local label, cmd
-    if current_tab == "Vocals" then
+    if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+      label = "PK ScrSet"
+      cmd   = CMD_SCREENSET_SAVE_PRO_KEYS
+    elseif current_tab == "Vocals" then
       label = "Vox ScrSet"
       cmd   = CMD_SCREENSET_SAVE_VOCALS
     elseif current_tab == "Venue" then
@@ -160,6 +163,10 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
       -- Force the Keys tab to be re-selected after the display name changes
       force_tab_selection("Keys", 3)
       if PRO_KEYS_ACTIVE then
+        -- Load Pro Keys screenset
+        if CMD_SCREENSET_LOAD_PRO_KEYS and CMD_SCREENSET_LOAD_PRO_KEYS > 0 then
+          reaper.Main_OnCommand(CMD_SCREENSET_LOAD_PRO_KEYS, 0)
+        end
         -- Select and open the appropriate Pro Keys track in MIDI editor
         local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
         local diff_key = diff_map[ACTIVE_DIFF] or "X"
@@ -168,6 +175,10 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
         -- Compute Pro Keys progress for this difficulty
         compute_pro_keys()
       else
+        -- Load instrument screenset
+        if CMD_SCREENSET_LOAD_OTHERS and CMD_SCREENSET_LOAD_OTHERS > 0 then
+          reaper.Main_OnCommand(CMD_SCREENSET_LOAD_OTHERS, 0)
+        end
         -- Switch back to PART KEYS
         select_and_scroll_track_by_name(TAB_TRACK["Keys"])
         -- Close MIDI editor only if it's currently open (not inline)

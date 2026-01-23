@@ -4,14 +4,16 @@
 local reaper = reaper
 
 -- Window screenset command IDs (Main section)
-CMD_SCREENSET_LOAD_OTHERS  = 40454  -- Screenset: Load window set #01
-CMD_SCREENSET_LOAD_VOCALS  = 40455  -- Screenset: Load window set #02
-CMD_SCREENSET_LOAD_OV      = 40456  -- Screenset: Load window set #03
-CMD_SCREENSET_LOAD_VENUE   = 40457  -- Screenset: Load window set #04
-CMD_SCREENSET_SAVE_OTHERS  = 40474  -- Screenset: Save window set #01
-CMD_SCREENSET_SAVE_VOCALS  = 40475  -- Screenset: Save window set #02
-CMD_SCREENSET_SAVE_OV      = 40476  -- Screenset: Save window set #03
-CMD_SCREENSET_SAVE_VENUE   = 40477  -- Screenset: Save window set #04
+CMD_SCREENSET_LOAD_OTHERS   = 40454  -- Screenset: Load window set #01
+CMD_SCREENSET_LOAD_VOCALS   = 40455  -- Screenset: Load window set #02
+CMD_SCREENSET_LOAD_OV       = 40456  -- Screenset: Load window set #03
+CMD_SCREENSET_LOAD_VENUE    = 40457  -- Screenset: Load window set #04
+CMD_SCREENSET_LOAD_PRO_KEYS = 40458  -- Screenset: Load window set #05
+CMD_SCREENSET_SAVE_OTHERS   = 40474  -- Screenset: Save window set #01
+CMD_SCREENSET_SAVE_VOCALS   = 40475  -- Screenset: Save window set #02
+CMD_SCREENSET_SAVE_OV       = 40476  -- Screenset: Save window set #03
+CMD_SCREENSET_SAVE_VENUE    = 40477  -- Screenset: Save window set #04
+CMD_SCREENSET_SAVE_PRO_KEYS = 40478  -- Screenset: Save window set #05
 
 function GetDockedHeight()
   local hwnd = reaper.JS_Window_Find(APP_NAME, true)

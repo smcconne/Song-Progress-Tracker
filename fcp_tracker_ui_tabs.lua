@@ -51,12 +51,21 @@ function handle_tab_height_switch(ctx, new_tab)
   local is_switching_to_venue    = (new_tab == "Venue" and current_tab ~= "Venue")
   local is_switching_from_venue  = (current_tab == "Venue" and new_tab ~= "Venue")
   local is_switching_to_setup    = (new_tab == "Setup" and current_tab ~= "Setup")
+  local is_switching_to_pro_keys = (new_tab == "Keys" and PRO_KEYS_ACTIVE and current_tab ~= "Keys")
+  local is_switching_from_pro_keys = (current_tab == "Keys" and PRO_KEYS_ACTIVE and new_tab ~= "Keys")
   
-  -- Instrument tabs: Drums, Bass, Guitar, Keys
-  local instrument_tabs = { Drums = true, Bass = true, Guitar = true, Keys = true }
+  -- Instrument tabs: Drums, Bass, Guitar, Keys (but not Pro Keys)
+  local instrument_tabs = { Drums = true, Bass = true, Guitar = true }
+  -- Keys is only an "instrument tab" if NOT in Pro Keys mode
+  if not PRO_KEYS_ACTIVE then instrument_tabs.Keys = true end
   local is_switching_to_instrument = instrument_tabs[new_tab] and not instrument_tabs[current_tab]
 
-  if is_switching_to_vocals then
+  if is_switching_to_pro_keys then
+    if CMD_SCREENSET_LOAD_PRO_KEYS and CMD_SCREENSET_LOAD_PRO_KEYS > 0 then
+      reaper.Main_OnCommand(CMD_SCREENSET_LOAD_PRO_KEYS, 0)
+    end
+    CENTER_DELAY_FRAMES = 2
+  elseif is_switching_to_vocals then
     if CMD_SCREENSET_LOAD_VOCALS and CMD_SCREENSET_LOAD_VOCALS > 0 then
       reaper.Main_OnCommand(CMD_SCREENSET_LOAD_VOCALS, 0)
     end
@@ -84,8 +93,8 @@ function handle_tab_height_switch(ctx, new_tab)
     CENTER_DELAY_FRAMES = 2
     -- Don't trigger SAVE_RUN here - FX windows are positioned via hard_apply_for_track
     -- when switching from Setup, and we don't want to override those positions
-  elseif is_switching_from_vocals or is_switching_from_ov or is_switching_from_venue then
-    -- Switching from Vocals/OV/Venue to another special tab (handled above catches Setup/instruments)
+  elseif is_switching_from_vocals or is_switching_from_ov or is_switching_from_venue or is_switching_from_pro_keys then
+    -- Switching from Vocals/OV/Venue/Pro Keys to another special tab (handled above catches Setup/instruments)
     if CMD_SCREENSET_LOAD_OTHERS and CMD_SCREENSET_LOAD_OTHERS > 0 then
       reaper.Main_OnCommand(CMD_SCREENSET_LOAD_OTHERS, 0)
     end
