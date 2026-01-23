@@ -40,7 +40,11 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
           ImGui.ImGui_SetCursorPosX(ctx, x0 + (i-1)*(venue_btn_w+BTN_GAP))
           ImGui.ImGui_SetCursorPosY(ctx, y0)
           local track_is_empty = is_all_empty("Venue", lab)
-          if DiffSquareButton(ctx, lab, lab, VENUE_MODE==lab, venue_btn_w, track_is_empty) then
+          if DiffSquareButton(ctx, lab, lab, VENUE_MODE==lab and not VENUE_TRACK_ACTIVE, venue_btn_w, track_is_empty) then
+            -- Disable Venue track mode when clicking Camera/Lighting
+            if VENUE_TRACK_ACTIVE then
+              VENUE_TRACK_ACTIVE = false
+            end
             VENUE_MODE = lab
             select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
             WANT_CENTER_ON_TAB = true
@@ -84,8 +88,10 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
           end
           
           -- Right-click: cycle all cells for this track
-          if ImGui.ImGui_IsItemClicked(ctx, 1) then
-            local row = STATE["Venue"] and STATE["Venue"][lab]
+          if ImGui.ImGui_IsItemClicked(ctx, 1) then            -- Disable Venue track mode when clicking Camera/Lighting
+            if VENUE_TRACK_ACTIVE then
+              VENUE_TRACK_ACTIVE = false
+            end            local row = STATE["Venue"] and STATE["Venue"][lab]
             if row then
               -- Count cells in each state
               local has_not_started = false
@@ -146,6 +152,32 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
             end
             reaper.defer(redirect_focus_after_click)
           end
+        end
+        
+        -- Venue track toggle button (similar to HOPOs/Pro Keys)
+        local venue_base_x = x0 + 2*(venue_btn_w+BTN_GAP) + BTN_GAP
+        ImGui.ImGui_SetCursorPosX(ctx, venue_base_x)
+        ImGui.ImGui_SetCursorPosY(ctx, y0)
+        if PairSquareButton(ctx, "Venue", VENUE_TRACK_ACTIVE, PAIR_W) then
+          VENUE_TRACK_ACTIVE = not VENUE_TRACK_ACTIVE
+          if VENUE_TRACK_ACTIVE then
+            -- Store current mode before switching
+            VENUE_PREV_MODE = VENUE_MODE
+            -- Select VENUE track and open in MIDI editor
+            select_and_scroll_track_by_name("VENUE", 40818, 40726)
+            -- Run 40452 then 40454 in MIDI editor
+            local me = reaper.MIDIEditor_GetActive()
+            if me then
+              reaper.MIDIEditor_OnCommand(me, 40452)  -- View: Zoom to content
+              reaper.MIDIEditor_OnCommand(me, 40454)  -- View: Zoom to selected items
+            end
+          else
+            -- Restore previous mode
+            local prev = VENUE_PREV_MODE or "Camera"
+            VENUE_MODE = prev
+            select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+          end
+          reaper.defer(redirect_focus_after_click)
         end
       elseif current_tab == "Vocals" then
         -- Vocals: H1/H2/H3/V

@@ -53,6 +53,8 @@ SAVED_PRO_KEYS        = SAVED_PRO_KEYS        or {}
 VENUE_MODE        = VENUE_MODE        or "Camera"     -- "Camera"|"Lighting"
 DIFFS_VENUE       = DIFFS_VENUE       or {"Camera","Lighting"}
 last_venue_mode   = last_venue_mode   or VENUE_MODE
+VENUE_TRACK_ACTIVE = VENUE_TRACK_ACTIVE or false      -- When true, shows VENUE track instead of Camera/Lighting
+VENUE_PREV_MODE   = VENUE_PREV_MODE   or nil          -- Store previous mode before switching to VENUE track
 
 -- Utilities --------------------------------------------------------------
 local function color_to_u32(native_color, a)

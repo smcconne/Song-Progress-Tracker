@@ -1,6 +1,6 @@
 -- @description FCP Song Progress Tracker
 -- @author FinestCardboardPearls
--- @version 1.0.2
+-- @version 1.0.3
 -- @provides
 --   [nomain] fcp_tracker_config.lua
 --   [nomain] fcp_tracker_chunk_parse.lua
@@ -31,7 +31,7 @@
 -- Rock Band Song Progress Tracker
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
-SCRIPT_VERSION = "1.0.2"
+SCRIPT_VERSION = "1.0.3"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
@@ -211,18 +211,71 @@ reaper.atexit(save_state_on_exit)
 -- Delay screenset loading until after window is established
 local startup_frames = 3
 
--- Handle FCP_PREVIEWS signal for Vocals tab difficulty switching
+-- Handle FCP_PREVIEWS signal for difficulty switching
 local function check_previews_signal()
   local request = reaper.GetExtState("FCP_PREVIEWS", "REQUEST")
   if request and request ~= "" then
     reaper.DeleteExtState("FCP_PREVIEWS", "REQUEST", false)
-    -- Only switch VOCALS_MODE if on Vocals tab
+    
     if current_tab == "Vocals" then
+      -- On Vocals tab: switch VOCALS_MODE (H1/H2/H3/V)
       local mode_map = { EXPERT="H1", HARD="H2", MEDIUM="H3", EASY="V" }
       local new_mode = mode_map[request]
       if new_mode and VOCALS_MODE ~= new_mode then
         VOCALS_MODE = new_mode
         select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE], 40818, 40726)
+      end
+    elseif current_tab == "Venue" then
+      -- On Venue tab: EXPERT=Camera, HARD=Lighting, MEDIUM=toggle Venue track
+      if request == "MEDIUM" then
+        -- Toggle VENUE_TRACK_ACTIVE
+        VENUE_TRACK_ACTIVE = not VENUE_TRACK_ACTIVE
+        if VENUE_TRACK_ACTIVE then
+          -- Store current mode before switching
+          VENUE_PREV_MODE = VENUE_MODE
+          -- Select VENUE track and open in MIDI editor
+          select_and_scroll_track_by_name("VENUE", 40818, 40726)
+          -- Run 40452 then 40454 in MIDI editor
+          local me = reaper.MIDIEditor_GetActive()
+          if me then
+            reaper.MIDIEditor_OnCommand(me, 40452)
+            reaper.MIDIEditor_OnCommand(me, 40454)
+          end
+        else
+          -- Restore previous mode
+          local prev = VENUE_PREV_MODE or "Camera"
+          VENUE_MODE = prev
+          VENUE_TRACK_ACTIVE = false
+          select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+        end
+      else
+        -- EXPERT=Camera, HARD=Lighting
+        local mode_map = { EXPERT="Camera", HARD="Lighting" }
+        local new_mode = mode_map[request]
+        if new_mode then
+          -- Disable Venue track mode when switching to Camera/Lighting
+          if VENUE_TRACK_ACTIVE then
+            VENUE_TRACK_ACTIVE = false
+          end
+          if VENUE_MODE ~= new_mode then
+            VENUE_MODE = new_mode
+            select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+          end
+        end
+      end
+    else
+      -- On other tabs: switch ACTIVE_DIFF (global difficulty)
+      local diff_map = { EXPERT="Expert", HARD="Hard", MEDIUM="Medium", EASY="Easy" }
+      local new_diff = diff_map[request]
+      if new_diff and ACTIVE_DIFF ~= new_diff then
+        ACTIVE_DIFF = new_diff
+        -- Trigger track selection for the new difficulty
+        if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+          local pk_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
+          local diff_key = pk_map[new_diff] or "X"
+          local trackname = PRO_KEYS_TRACKS[diff_key]
+          select_and_scroll_track_by_name(trackname, 40818, 40726)
+        end
       end
     end
   end

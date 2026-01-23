@@ -2,7 +2,7 @@
 <index version="1" name="FinestCardboardPearls Scripts">
   <category name="Song Progress Tracker">
     <reapack name="FCP Song Progress Tracker.lua" type="script">
-      <version name="1.0.2" author="FinestCardboardPearls">
+      <version name="1.0.3" author="FinestCardboardPearls">
         <changelog><![CDATA[Initial ReaPack release
 
 Features:
