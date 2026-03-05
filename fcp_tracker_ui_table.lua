@@ -423,7 +423,7 @@ function draw_table(ctx, redirect_focus_after_click)
         local mouse_in_cell = mouse_x >= prog_cell_x and mouse_x < prog_cell_x + cell_w
                           and mouse_y >= prog_cell_y and mouse_y < prog_cell_y + cell_h
         
-        if PAINT.down and mouse_in_cell and not PAINT.seEN[r] then
+        if PAINT.down and mouse_in_cell and not PAINT.seEN[r] and not LISTEN_DRAG_ACTIVE then
           apply_toggle(current_tab, display_diff, r)
           PAINT.seEN[r], PAINT.did_any = true, true
           -- Store redirect to call on mouse release, don't call immediately
@@ -433,7 +433,7 @@ function draw_table(ctx, redirect_focus_after_click)
         end
 
         -- Handle single click (only if not already processed by drag-paint)
-        if clicked and not PAINT.seEN[r] then
+        if clicked and not PAINT.seEN[r] and not LISTEN_DRAG_ACTIVE then
           apply_toggle(current_tab, display_diff, r)
           PAINT.seEN[r], PAINT.did_any = true, true
           -- Store redirect to call on mouse release, don't call immediately

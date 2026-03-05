@@ -47,6 +47,12 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
             end
             VENUE_MODE = lab
             select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+            -- Run 40452 then 40454 in MIDI editor
+            local me = reaper.MIDIEditor_GetActive()
+            if me then
+              reaper.MIDIEditor_OnCommand(me, 40452)
+              reaper.MIDIEditor_OnCommand(me, 40454)
+            end
             WANT_CENTER_ON_TAB = true
             reaper.defer(redirect_focus_after_click)
           end
@@ -176,6 +182,12 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
             local prev = VENUE_PREV_MODE or "Camera"
             VENUE_MODE = prev
             select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+            -- Run 40452 then 40454 in MIDI editor
+            local me = reaper.MIDIEditor_GetActive()
+            if me then
+              reaper.MIDIEditor_OnCommand(me, 40452)
+              reaper.MIDIEditor_OnCommand(me, 40454)
+            end
           end
           reaper.defer(redirect_focus_after_click)
         end

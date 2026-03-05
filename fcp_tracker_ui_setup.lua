@@ -652,12 +652,423 @@ end
 --------------------------------------------------------------------------------
 -- Draw Setup Tab Content (public function called from fcp_tracker_ui.lua)
 --------------------------------------------------------------------------------
+-- State for Import Stems popup
+local import_stems_popup_open = false
+local import_stems_file_list = {}
+local import_stems_results = {}
+local import_stems_directory = ""  -- Store directory for overwrite operations
+
+-- Stem mapping rules: pattern -> { track_name, parent_track }
+-- Order matters: more specific patterns should come first
+local STEM_MAPPING_RULES = {
+  { pattern = "_(Vocals)_(Instrumental)", track = "Vox Backing", parent = "PART VOCALS" },
+  { pattern = "_(Vocals)_(Vocals)", track = "Vox Main", parent = "PART VOCALS" },
+  { pattern = "_(Vocals)", track = "Vox All", parent = "PART VOCALS" },
+  { pattern = "_(Drums)_(kick)", track = "Kick", parent = "PART DRUMS" },
+  { pattern = "_(Drums)_(snare)", track = "Snare", parent = "PART DRUMS" },
+  { pattern = "_(Drums)_(toms)", track = "Toms", parent = "PART DRUMS" },
+  { pattern = "_(Drums)_(hh)", track = "Hi Hat", parent = "PART DRUMS" },
+  { pattern = "_(Drums)_(cymbals)", track = "Cymbals", parent = "PART DRUMS" },
+  { pattern = "_(Bass)", track = "Bass", parent = "PART BASS" },
+  { pattern = "_(Drums)", track = "Drums", parent = "PART DRUMS" },
+  { pattern = "_(Guitar)", track = "Guitar", parent = "PART GUITAR" },
+  { pattern = "_(Other)", track = "Other", parent = "PART KEYS" },
+  { pattern = "_(Piano)", track = "Piano", parent = "PART KEYS" },
+}
+
+-- Build a set of stem track names for quick lookup
+local STEM_TRACK_NAMES = {}
+for _, rule in ipairs(STEM_MAPPING_RULES) do
+  STEM_TRACK_NAMES[rule.track] = true
+end
+STEM_TRACK_NAMES["FULL MIX"] = true  -- Include FULL MIX in stem operations
+
+-- Get the earliest audio item position on a track (returns time or nil)
+local function get_track_audio_start(tr)
+  if not tr then return nil end
+  local item_count = reaper.CountTrackMediaItems(tr)
+  local earliest = nil
+  for i = 0, item_count - 1 do
+    local item = reaper.GetTrackMediaItem(tr, i)
+    local take = reaper.GetActiveTake(item)
+    if take then
+      local src = reaper.GetMediaItemTake_Source(take)
+      local src_type = src and reaper.GetMediaSourceType(src, "") or ""
+      if src_type ~= "MIDI" and src_type ~= "" then
+        local pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
+        if not earliest or pos < earliest then
+          earliest = pos
+        end
+      end
+    end
+  end
+  return earliest
+end
+
+-- Get audio start MBT for stem tracks based on priority rules
+local function get_stems_audio_start_mbt()
+  local n = reaper.CountTracks(0)
+  
+  -- Build list of stem tracks with audio and their start times
+  local stem_tracks_with_audio = {}
+  for i = 0, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local _, name = reaper.GetTrackName(tr)
+    if STEM_TRACK_NAMES[name] then
+      local audio_start = get_track_audio_start(tr)
+      if audio_start then
+        stem_tracks_with_audio[#stem_tracks_with_audio + 1] = {
+          track = tr,
+          name = name,
+          start_time = audio_start
+        }
+      end
+    end
+  end
+  
+  -- Priority 1: No audio exists for any stem track
+  if #stem_tracks_with_audio == 0 then
+    return nil, nil
+  end
+  
+  -- Priority 2: First selected track with audio that's in STEM_MAPPING_RULES
+  local sel_count = reaper.CountSelectedTracks(0)
+  for i = 0, sel_count - 1 do
+    local sel_tr = reaper.GetSelectedTrack(0, i)
+    for _, info in ipairs(stem_tracks_with_audio) do
+      if info.track == sel_tr then
+        return reaper.format_timestr_pos(info.start_time, "", 2), info.start_time
+      end
+    end
+  end
+  
+  -- Priority 3: First track with audio from the stem tracks list (by track order)
+  table.sort(stem_tracks_with_audio, function(a, b)
+    local idx_a = reaper.GetMediaTrackInfo_Value(a.track, "IP_TRACKNUMBER")
+    local idx_b = reaper.GetMediaTrackInfo_Value(b.track, "IP_TRACKNUMBER")
+    return idx_a < idx_b
+  end)
+  
+  return reaper.format_timestr_pos(stem_tracks_with_audio[1].start_time, "", 2), stem_tracks_with_audio[1].start_time
+end
+
+-- Set start time of all audio items in stem tracks to a specific time
+local function set_all_stems_start_time(target_time)
+  if not target_time then return end
+  
+  reaper.Undo_BeginBlock()
+  reaper.PreventUIRefresh(1)
+  
+  local n = reaper.CountTracks(0)
+  for i = 0, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local _, name = reaper.GetTrackName(tr)
+    if STEM_TRACK_NAMES[name] then
+      local item_count = reaper.CountTrackMediaItems(tr)
+      for j = 0, item_count - 1 do
+        local item = reaper.GetTrackMediaItem(tr, j)
+        local take = reaper.GetActiveTake(item)
+        if take then
+          local src = reaper.GetMediaItemTake_Source(take)
+          local src_type = src and reaper.GetMediaSourceType(src, "") or ""
+          if src_type ~= "MIDI" and src_type ~= "" then
+            reaper.SetMediaItemInfo_Value(item, "D_POSITION", target_time)
+          end
+        end
+      end
+    end
+  end
+  
+  reaper.PreventUIRefresh(-1)
+  reaper.UpdateArrange()
+  reaper.Undo_EndBlock("Set all stems start time", -1)
+end
+
+-- Find track by name
+local function find_track_by_name(name)
+  local n = reaper.CountTracks(0)
+  for i = 0, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local _, nm = reaper.GetTrackName(tr)
+    if nm == name then return tr, i end
+  end
+  return nil, nil
+end
+
+-- Create a track as a child of a parent track
+local function create_child_track(track_name, parent_name)
+  local parent_tr, parent_idx = find_track_by_name(parent_name)
+  if not parent_tr then
+    -- Parent doesn't exist, create at end
+    reaper.InsertTrackAtIndex(reaper.CountTracks(0), true)
+    local new_tr = reaper.GetTrack(0, reaper.CountTracks(0) - 1)
+    reaper.GetSetMediaTrackInfo_String(new_tr, "P_NAME", track_name, true)
+    return new_tr
+  end
+  
+  -- Find the last child of this parent (or parent itself if no children)
+  local parent_depth = reaper.GetMediaTrackInfo_Value(parent_tr, "I_FOLDERDEPTH")
+  local insert_idx = parent_idx + 1
+  local n = reaper.CountTracks(0)
+  local depth = 0
+  
+  -- Walk through tracks after parent to find insertion point
+  for i = parent_idx + 1, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local fd = reaper.GetMediaTrackInfo_Value(tr, "I_FOLDERDEPTH")
+    depth = depth + fd
+    if depth < 0 then
+      -- We've exited the parent folder
+      insert_idx = i
+      break
+    end
+    insert_idx = i + 1
+  end
+  
+  -- Insert new track
+  reaper.InsertTrackAtIndex(insert_idx, true)
+  local new_tr = reaper.GetTrack(0, insert_idx)
+  reaper.GetSetMediaTrackInfo_String(new_tr, "P_NAME", track_name, true)
+  
+  -- Set parent to be a folder if it isn't already
+  if parent_depth <= 0 then
+    reaper.SetMediaTrackInfo_Value(parent_tr, "I_FOLDERDEPTH", 1)
+  end
+  
+  return new_tr
+end
+
+-- Check if a track has any audio items
+local function track_has_audio_items(tr)
+  if not tr then return false end
+  local item_count = reaper.CountTrackMediaItems(tr)
+  for i = 0, item_count - 1 do
+    local item = reaper.GetTrackMediaItem(tr, i)
+    local take = reaper.GetActiveTake(item)
+    if take then
+      local src = reaper.GetMediaItemTake_Source(take)
+      local src_type = src and reaper.GetMediaSourceType(src, "") or ""
+      if src_type ~= "MIDI" and src_type ~= "" then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+-- Delete all audio items from a track
+local function delete_audio_items_from_track(tr)
+  if not tr then return end
+  local item_count = reaper.CountTrackMediaItems(tr)
+  -- Iterate backwards to avoid index shifting
+  for i = item_count - 1, 0, -1 do
+    local item = reaper.GetTrackMediaItem(tr, i)
+    local take = reaper.GetActiveTake(item)
+    if take then
+      local src = reaper.GetMediaItemTake_Source(take)
+      local src_type = src and reaper.GetMediaSourceType(src, "") or ""
+      if src_type ~= "MIDI" and src_type ~= "" then
+        reaper.DeleteTrackMediaItem(tr, item)
+      end
+    end
+  end
+end
+
+-- Get matching rule for a filename
+local function get_stem_rule_for_filename(filename)
+  for _, rule in ipairs(STEM_MAPPING_RULES) do
+    if filename:find(rule.pattern, 1, true) then
+      return rule
+    end
+  end
+  return nil
+end
+
+-- Find or create FULL MIX track at the top of the track list
+local function find_or_create_full_mix_track()
+  -- First check if FULL MIX already exists
+  local full_mix_tr = find_track_by_name("FULL MIX")
+  if full_mix_tr then
+    return full_mix_tr
+  end
+  
+  -- Create new track at index 0 (top of track list)
+  reaper.InsertTrackAtIndex(0, true)
+  local new_tr = reaper.GetTrack(0, 0)
+  if new_tr then
+    reaper.GetSetMediaTrackInfo_String(new_tr, "P_NAME", "FULL MIX", true)
+  end
+  return new_tr
+end
+
+-- Import a single stem file to the appropriate track
+-- If insert_time is provided, use it; otherwise default to 1.1.00
+-- If force_overwrite is true, will delete existing audio first
+-- Unmatched files go to FULL MIX track
+local function import_stem_to_track(filepath, filename, insert_time, force_overwrite)
+  -- Find matching rule
+  local match_rule = get_stem_rule_for_filename(filename)
+  
+  local target_tr
+  local target_track_name
+  
+  if match_rule then
+    -- Find or create the target track based on rule
+    target_tr = find_track_by_name(match_rule.track)
+    if not target_tr then
+      target_tr = create_child_track(match_rule.track, match_rule.parent)
+    end
+    target_track_name = match_rule.track
+  else
+    -- No matching rule: use FULL MIX as fallback
+    target_tr = find_or_create_full_mix_track()
+    target_track_name = "FULL MIX"
+  end
+  
+  if not target_tr then
+    return false, "Failed to create track", nil
+  end
+  
+  -- Check if track already has audio
+  local has_existing_audio = track_has_audio_items(target_tr)
+  if has_existing_audio and not force_overwrite then
+    -- Return special status indicating existing audio
+    return false, "existing_audio", target_track_name
+  end
+  
+  -- If force_overwrite, delete existing audio first
+  if force_overwrite and has_existing_audio then
+    delete_audio_items_from_track(target_tr)
+  end
+  
+  -- Use provided insert_time or default to 1.1.00 (measure 1, beat 1 = time 0)
+  if not insert_time then
+    insert_time = reaper.TimeMap2_beatsToTime(0, 0, 0)  -- measure 1 = index 0
+  end
+  
+  -- Insert media at position
+  reaper.SetOnlyTrackSelected(target_tr)
+  reaper.InsertMedia(filepath, 0)  -- 0 = add to current track
+  
+  -- Move the inserted item to the target position
+  local item_count = reaper.CountTrackMediaItems(target_tr)
+  if item_count > 0 then
+    local item = reaper.GetTrackMediaItem(target_tr, item_count - 1)
+    reaper.SetMediaItemInfo_Value(item, "D_POSITION", insert_time)
+  end
+  
+  return true, target_track_name, nil
+end
+
+-- Overwrite a single stem file (delete existing audio and import new)
+local function overwrite_stem_on_track(filepath, filename, insert_time)
+  return import_stem_to_track(filepath, filename, insert_time, true)
+end
+
+-- Import all stems from file list
+local function import_all_stems(directory, filenames)
+  reaper.Undo_BeginBlock()
+  reaper.PreventUIRefresh(1)
+  
+  -- Get the current "Stems Start @" value before importing
+  -- If stems already exist, use their start time for new imports
+  local _, existing_start_time = get_stems_audio_start_mbt()
+  
+  local results = {}
+  for _, filename in ipairs(filenames) do
+    local filepath = directory .. "\\" .. filename
+    local success, result, track_name = import_stem_to_track(filepath, filename, existing_start_time, false)
+    results[#results + 1] = { 
+      filename = filename, 
+      success = success, 
+      result = result,
+      track_name = track_name,  -- Track name for overwrite button
+      filepath = filepath       -- Store full path for overwrite
+    }
+  end
+  
+  reaper.PreventUIRefresh(-1)
+  reaper.UpdateArrange()
+  reaper.Undo_EndBlock("Import Stems", -1)
+  
+  return results
+end
+
 function draw_setup_tab(ctx)
   -- Get available size for the child regions (returns width, height)
   local _, avail_h = ImGui.ImGui_GetContentRegionAvail(ctx)
   
   -- LEFT COLUMN: Use a Child region to fill available height
   if ImGui.ImGui_BeginChild(ctx, "LeftColumn", 136, avail_h, 0, ImGui.ImGui_WindowFlags_NoScrollbar()) then
+    -- Import Stems section
+    ImGui.ImGui_Text(ctx, "Import Stems:")
+    ImGui.ImGui_Spacing(ctx)
+    if ImGui.ImGui_Button(ctx, "Click to Import", 120, 0) then
+      -- Open file dialog for audio files (requires JS_ReaScriptAPI)
+      local retval, files = reaper.JS_Dialog_BrowseForOpenFiles(
+        "Select Audio Files",
+        "",
+        "",
+        "Audio Files\0*.wav;*.mp3;*.flac;*.aiff;*.aif;*.ogg;*.wma;*.m4a\0All Files\0*.*\0\0",
+        true  -- allow multiple
+      )
+      if retval == 1 and files and files ~= "" then
+        -- Parse selected files (null-separated on Windows)
+        import_stems_file_list = {}
+        local sep = string.char(0)
+        local parts = {}
+        for part in (files .. sep):gmatch("(.-)" .. sep) do
+          if part ~= "" then parts[#parts + 1] = part end
+        end
+        local directory = ""
+        if #parts > 1 then
+          -- First part is directory, rest are filenames
+          directory = parts[1]
+          for i = 2, #parts do
+            import_stems_file_list[#import_stems_file_list + 1] = parts[i]
+          end
+        elseif #parts == 1 then
+          -- Single file selected (full path)
+          directory = parts[1]:match("^(.+)[/\\]") or ""
+          local filename = parts[1]:match("([^/\\]+)$") or parts[1]
+          import_stems_file_list[1] = filename
+        end
+        if #import_stems_file_list > 0 then
+          -- Store directory for potential overwrite operations
+          import_stems_directory = directory
+          -- Perform the import
+          import_stems_results = import_all_stems(directory, import_stems_file_list)
+          import_stems_popup_open = true
+        end
+      end
+    end
+    ImGui.ImGui_Spacing(ctx)
+    
+    -- Audio Start - using table style like Essential Events
+    local audio_start_mbt, audio_start_time = get_stems_audio_start_mbt()
+    if ImGui.ImGui_BeginTable(ctx, "AudioStart_Table", 2, ImGui.ImGui_TableFlags_None()) then
+      ImGui.ImGui_TableSetupColumn(ctx, "AudioStartLabel", ImGui.ImGui_TableColumnFlags_WidthFixed(), 75)
+      ImGui.ImGui_TableSetupColumn(ctx, "AudioStartMBT", ImGui.ImGui_TableColumnFlags_WidthFixed(), 61)
+      
+      ImGui.ImGui_TableNextRow(ctx)
+      ImGui.ImGui_TableNextColumn(ctx)
+      if ImGui.ImGui_Selectable(ctx, "Stems Start @##audio_start", false, ImGui.ImGui_SelectableFlags_SpanAllColumns(), 0, 0) then
+        if audio_start_time then
+          set_all_stems_start_time(audio_start_time)
+        end
+      end
+      if ImGui.ImGui_IsItemHovered(ctx) and audio_start_time then
+        ImGui.ImGui_SetTooltip(ctx, "Click to shift all stem start times to selected track's start time (" .. audio_start_mbt .. ")")
+      end
+      ImGui.ImGui_TableNextColumn(ctx)
+      ImGui.ImGui_Text(ctx, audio_start_mbt or "—")
+      
+      ImGui.ImGui_EndTable(ctx)
+    end
+    ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Separator(ctx)
+    ImGui.ImGui_Spacing(ctx)
+    
     ImGui.ImGui_Text(ctx, "Essential Events:")
     ImGui.ImGui_Spacing(ctx)
     ImGui.ImGui_Spacing(ctx)
@@ -793,7 +1204,10 @@ function draw_setup_tab(ctx)
       ImGui.ImGui_SetCursorPosY(ctx, target_y)
     end
     
-    -- Version info at bottom of left column (no separator)
+    -- Version info at bottom of left column
+    
+    ImGui.ImGui_Spacing(ctx)
+    ImGui.ImGui_Separator(ctx)
     ImGui.ImGui_Spacing(ctx)
     local version_text = "v" .. (SCRIPT_VERSION or "?.?.?")
     ImGui.ImGui_Text(ctx, "Version: " .. version_text)
@@ -1010,6 +1424,68 @@ function draw_setup_tab(ctx)
     end
     
     ImGui.ImGui_EndChild(ctx)
+  end
+  
+  -- Import Stems popup
+  if import_stems_popup_open then
+    ImGui.ImGui_OpenPopup(ctx, "Import Stems Files")
+    import_stems_popup_open = false
+  end
+  
+  if ImGui.ImGui_BeginPopupModal(ctx, "Import Stems Files", true, ImGui.ImGui_WindowFlags_AlwaysAutoResize()) then
+    ImGui.ImGui_Text(ctx, "Import Results:")
+    ImGui.ImGui_Separator(ctx)
+    
+    -- Use a table for better alignment with overwrite buttons
+    if ImGui.ImGui_BeginTable(ctx, "ImportResults", 2, ImGui.ImGui_TableFlags_None()) then
+      ImGui.ImGui_TableSetupColumn(ctx, "Result", ImGui.ImGui_TableColumnFlags_WidthStretch())
+      ImGui.ImGui_TableSetupColumn(ctx, "Action", ImGui.ImGui_TableColumnFlags_WidthFixed(), 120)
+      
+      for i, r in ipairs(import_stems_results) do
+        ImGui.ImGui_TableNextRow(ctx)
+        ImGui.ImGui_TableNextColumn(ctx)
+        
+        if r.success then
+          ImGui.ImGui_Text(ctx, r.filename .. " -> " .. r.result)
+        elseif r.result == "existing_audio" and r.track_name then
+          ImGui.ImGui_TextColored(ctx, 0x66AAFFFF, r.filename .. " (" .. r.track_name .. " has audio)")
+        else
+          ImGui.ImGui_TextColored(ctx, 0xFF6666FF, r.filename .. " (skipped)")
+        end
+        
+        ImGui.ImGui_TableNextColumn(ctx)
+        
+        -- Show overwrite button only for existing_audio conflicts
+        if r.result == "existing_audio" and r.track_name then
+          if ImGui.ImGui_Button(ctx, "Overwrite " .. r.track_name .. "?##" .. tostring(i), -1, 0) then
+            -- Perform the overwrite
+            reaper.Undo_BeginBlock()
+            reaper.PreventUIRefresh(1)
+            
+            local _, existing_start_time = get_stems_audio_start_mbt()
+            local success, result = overwrite_stem_on_track(r.filepath, r.filename, existing_start_time)
+            
+            reaper.PreventUIRefresh(-1)
+            reaper.UpdateArrange()
+            reaper.Undo_EndBlock("Overwrite Stem: " .. r.track_name, -1)
+            
+            -- Update the result in place
+            if success then
+              import_stems_results[i] = { filename = r.filename, success = true, result = result }
+            end
+          end
+        end
+      end
+      
+      ImGui.ImGui_EndTable(ctx)
+    end
+    
+    ImGui.ImGui_Separator(ctx)
+    ImGui.ImGui_Spacing(ctx)
+    if ImGui.ImGui_Button(ctx, "OK", 120, 0) then
+      ImGui.ImGui_CloseCurrentPopup(ctx)
+    end
+    ImGui.ImGui_EndPopup(ctx)
   end
 end
 

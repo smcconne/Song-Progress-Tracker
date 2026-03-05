@@ -124,24 +124,8 @@ FCP_CTX = ImGui.ImGui_CreateContext(
 Progress_Init(true)  -- skip_fx_align=true, startup has its own flow
 Progress_UI_Init(FCP_CTX)
 
--- Hide all MIDI tracks from MCP (mixer control panel)
-local function hide_midi_tracks_from_mcp()
-  local n = reaper.CountTracks(0)
-  for i = 0, n - 1 do
-    local tr = reaper.GetTrack(0, i)
-    local item_count = reaper.CountTrackMediaItems(tr)
-    for j = 0, item_count - 1 do
-      local item = reaper.GetTrackMediaItem(tr, j)
-      local take = reaper.GetActiveTake(item)
-      if take and reaper.TakeIsMIDI(take) then
-        -- This track has a MIDI item, hide it from MCP
-        reaper.SetMediaTrackInfo_Value(tr, "B_SHOWINMIXER", 0)
-        break
-      end
-    end
-  end
-end
-hide_midi_tracks_from_mcp()
+-- Show audio tracks in MCP, hide MIDI-only tracks
+set_mcp_visibility_for_audio_tracks()
 
 -- Flag to suppress tab-switch side effects during startup
 -- This is a global so fcp_tracker_ui.lua can check it
@@ -247,6 +231,12 @@ local function check_previews_signal()
           VENUE_MODE = prev
           VENUE_TRACK_ACTIVE = false
           select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+          -- Run 40452 then 40454 in MIDI editor
+          local me = reaper.MIDIEditor_GetActive()
+          if me then
+            reaper.MIDIEditor_OnCommand(me, 40452)
+            reaper.MIDIEditor_OnCommand(me, 40454)
+          end
         end
       else
         -- EXPERT=Camera, HARD=Lighting
@@ -261,14 +251,25 @@ local function check_previews_signal()
             VENUE_MODE = new_mode
             select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
           end
+          -- Run 40452 then 40454 in MIDI editor
+          local me = reaper.MIDIEditor_GetActive()
+          if me then
+            reaper.MIDIEditor_OnCommand(me, 40452)
+            reaper.MIDIEditor_OnCommand(me, 40454)
+          end
         end
       end
     else
       -- On other tabs: switch ACTIVE_DIFF (global difficulty)
       local diff_map = { EXPERT="Expert", HARD="Hard", MEDIUM="Medium", EASY="Easy" }
       local new_diff = diff_map[request]
-      if new_diff and ACTIVE_DIFF ~= new_diff then
+      if new_diff then
+        -- Always apply RBN Preview FX preset changes when difficulty request is received
+        -- (ACTIVE_DIFF may already be set by button handler, but we still need to run_set)
         ACTIVE_DIFF = new_diff
+        PAIR_MODE = 0
+        -- Apply RBN Preview FX preset changes to all instrument tracks
+        run_set(request)
         -- Trigger track selection for the new difficulty
         if current_tab == "Keys" and PRO_KEYS_ACTIVE then
           local pk_map = { Expert="X", Hard="H", Medium="M", Easy="E" }

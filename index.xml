@@ -2,7 +2,7 @@
 <index version="1" name="FinestCardboardPearls Scripts">
   <category name="Song Progress Tracker">
     <reapack name="FCP Song Progress Tracker.lua" type="script">
-      <version name="1.0.3" author="FinestCardboardPearls">
+      <version name="1.0.4" author="FinestCardboardPearls">
         <changelog><![CDATA[Initial ReaPack release
 
 Features:
@@ -52,6 +52,20 @@ Features:
     <reapack name="FCP Switch to Expert Difficulty.lua" type="script">
       <version name="1.0.0" author="FinestCardboardPearls">
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Expert%20Difficulty.lua</source>
+      </version>
+    </reapack>
+    <reapack name="FCP Predict Tempo Markers.lua" type="script">
+      <version name="0.6" author="FinestCardboardPearls">
+        <changelog><![CDATA[Predict Tempo Markers
+
+Features:
+- Analyzes drum transients and predicts optimal tempo marker placements
+- Fits tempo changes so musical grid subdivisions (16ths/triplets) align with transients
+- Multiple prediction options with different sensitivities
+- Time signature detection and configuration
+- Navigation buttons for transient jumping and time selection
+]]></changelog>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Predict%20Tempo%20Markers.lua</source>
       </version>
     </reapack>
   </category>

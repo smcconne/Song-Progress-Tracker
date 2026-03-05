@@ -145,6 +145,14 @@ local function get_script_cmd(ext_key)
   return 0
 end
 
+-- Start/toggle Encore Vox Preview only
+function start_encore_vox_preview_only()
+  local cmd_encore = get_script_cmd(EXT_CMD_ENCORE_VOX)
+  if cmd_encore ~= 0 then
+    reaper.Main_OnCommand(cmd_encore, 0)
+  end
+end
+
 -- Start/toggle Encore Vox Preview, Lyrics Clipboard, and Spectracular scripts
 function start_encore_vox_preview()
   local cmd_encore = get_script_cmd(EXT_CMD_ENCORE_VOX)
@@ -188,6 +196,24 @@ function start_pro_keys_preview()
   end
 end
 
+-- Start/toggle Spectracular script
+function start_spectracular()
+  local cmd_spectracular = get_script_cmd(EXT_CMD_SPECTRACULAR)
+  if cmd_spectracular ~= 0 then
+    -- Select first MIDI item on PART VOCALS before running Spectracular
+    local n = reaper.CountTracks(0)
+    for i = 0, n - 1 do
+      local tr = reaper.GetTrack(0, i)
+      local ok, tname = reaper.GetTrackName(tr)
+      if ok and tname == "PART VOCALS" then
+        select_first_midi_item_on_track_no_editor(tr)
+        break
+      end
+    end
+    reaper.Main_OnCommand(cmd_spectracular, 0)
+  end
+end
+
 -- Get track FX enabled state by track name
 function get_track_fx_enabled(trackname)
   local n = reaper.CountTracks(0)
@@ -213,6 +239,38 @@ function toggle_track_fx_enabled(trackname)
       local fx_en = reaper.GetMediaTrackInfo_Value(tr, "I_FXEN")
       local new_state = (fx_en ~= 0) and 0 or 1
       reaper.SetMediaTrackInfo_Value(tr, "I_FXEN", new_state)
+      return
+    end
+  end
+end
+
+-- Get track volume by track name (returns 0.0-1.0 normalized, or nil if not found)
+-- Note: REAPER volume is 0.0 to ~4.0 (where 1.0 = 0dB), we normalize to 0.0-1.0 for UI
+function get_track_volume(trackname)
+  local n = reaper.CountTracks(0)
+  for i = 0, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local ok, tname = reaper.GetTrackName(tr)
+    if ok and tname == trackname then
+      local vol = reaper.GetMediaTrackInfo_Value(tr, "D_VOL")
+      -- Normalize: REAPER volume range is 0 to ~4 (1.0 = 0dB)
+      -- We use 0-1 range for UI display, where 1.0 = 0dB (full volume)
+      return math.min(1.0, vol)
+    end
+  end
+  return nil
+end
+
+-- Set track volume by track name (accepts 0.0-1.0 normalized)
+function set_track_volume(trackname, vol_normalized)
+  local n = reaper.CountTracks(0)
+  for i = 0, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local ok, tname = reaper.GetTrackName(tr)
+    if ok and tname == trackname then
+      -- Clamp to 0.0-1.0 range (we don't go above unity gain)
+      local vol = math.max(0.0, math.min(1.0, vol_normalized))
+      reaper.SetMediaTrackInfo_Value(tr, "D_VOL", vol)
       return
     end
   end
@@ -255,7 +313,7 @@ function track_has_audio(tr)
 end
 
 -- Show/hide tracks based on content type for Setup mode
--- Setup: show audio tracks, hide MIDI tracks
+-- Setup: show all tracks
 -- Non-Setup: show MIDI tracks, hide audio tracks
 function set_tcp_visibility_for_setup(is_setup)
   local n = reaper.CountTracks(0)
@@ -265,13 +323,8 @@ function set_tcp_visibility_for_setup(is_setup)
     local has_audio = track_has_audio(tr)
     
     if is_setup then
-      -- Setup tab: show audio, hide MIDI
-      if has_audio and not has_midi then
-        reaper.SetMediaTrackInfo_Value(tr, "B_SHOWINTCP", 1)
-      elseif has_midi and not has_audio then
-        reaper.SetMediaTrackInfo_Value(tr, "B_SHOWINTCP", 0)
-      end
-      -- Mixed tracks or empty tracks: leave as-is
+      -- Setup tab: show all tracks
+      reaper.SetMediaTrackInfo_Value(tr, "B_SHOWINTCP", 1)
     else
       -- Non-Setup tabs: show MIDI, hide audio
       if has_midi and not has_audio then
@@ -280,6 +333,23 @@ function set_tcp_visibility_for_setup(is_setup)
         reaper.SetMediaTrackInfo_Value(tr, "B_SHOWINTCP", 0)
       end
       -- Mixed tracks or empty tracks: leave as-is
+    end
+  end
+  reaper.TrackList_AdjustWindows(false)
+end
+
+-- Show/hide tracks in MCP based on whether they have audio content
+-- Audio tracks: show in MCP
+-- Non-audio tracks (MIDI only, empty): hide from MCP
+function set_mcp_visibility_for_audio_tracks()
+  local n = reaper.CountTracks(0)
+  for i = 0, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local has_audio = track_has_audio(tr)
+    if has_audio then
+      reaper.SetMediaTrackInfo_Value(tr, "B_SHOWINMIXER", 1)
+    else
+      reaper.SetMediaTrackInfo_Value(tr, "B_SHOWINMIXER", 0)
     end
   end
   reaper.TrackList_AdjustWindows(false)

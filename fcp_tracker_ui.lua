@@ -27,8 +27,74 @@ local function redirect_focus_after_click()
 end
 
 
+-- Editor row rendering (above footer)
+local function draw_editor_row(ctx, pw, redirect_focus_after_click)
+  -- Move up 4px
+  local cur_y = ImGui.ImGui_GetCursorPosY(ctx)
+  ImGui.ImGui_SetCursorPosY(ctx, cur_y - 3)
+  
+  -- Check if MIDI editor is open (not inline)
+  local midi_editor_open = false
+  local me = reaper.MIDIEditor_GetActive()
+  if me then
+    local mode = reaper.MIDIEditor_GetMode(me)
+    if mode == 0 then  -- 0 = piano roll (floating), 1 = inline
+      midi_editor_open = true
+    end
+  end
+  
+  if PairLikeButton(ctx, "btn_editor", "Editor", pw * 1.2, midi_editor_open) then
+    if midi_editor_open then
+      -- Close the MIDI editor
+      reaper.MIDIEditor_OnCommand(me, 2)  -- File: Close window
+    else
+      -- Open MIDI editor for selected item
+      reaper.Main_OnCommand(40153, 0)  -- Item: Open in built-in MIDI editor
+    end
+    reaper.defer(redirect_focus_after_click)
+  end
+  
+  -- Visualizer button (Pro Keys tab only)
+  if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_visualizer", "Visualizer", pw * 1.5, false) then
+      start_pro_keys_preview()
+      reaper.defer(redirect_focus_after_click)
+    end
+    
+    -- Listen button (toggle FX for selected Pro Keys track, drag for volume)
+    local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
+    local diff_key = diff_map[ACTIVE_DIFF] or "X"
+    local pro_keys_trackname = PRO_KEYS_TRACKS[diff_key]
+    local fx_enabled = get_track_fx_enabled(pro_keys_trackname)
+    local current_vol = get_track_volume(pro_keys_trackname) or 1.0
+    
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    local listen_clicked, _ = ListenButtonWithVolume(ctx, "btn_listen", "Listen", pw, fx_enabled, current_vol, pro_keys_trackname)
+    if listen_clicked then
+      toggle_track_fx_enabled(pro_keys_trackname)
+      reaper.defer(redirect_focus_after_click)
+    end
+  elseif current_tab == "Vocals" then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_visualizer", "Visualizer", pw * 1.5, false) then
+      start_encore_vox_preview_only()
+      reaper.defer(redirect_focus_after_click)
+    end
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_spectracular", "Spectracular", pw * 1.75, false) then
+      start_spectracular()
+      reaper.defer(redirect_focus_after_click)
+    end
+  end
+end
+
 -- Footer rendering
 local function draw_footer(ctx, pw, redirect_focus_after_click)
+  -- Add spacing from Editor row
+  local cur_y = ImGui.ImGui_GetCursorPosY(ctx)
+  ImGui.ImGui_SetCursorPosY(ctx, cur_y + 2)
+  
   if PairLikeButton(ctx, "btn_align", "Align", pw, false) then
     reaper.SetExtState(EXT_NS, EXT_LINEUP, "SAVE_RUN", true)
   end
@@ -53,7 +119,7 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
       cmd   = CMD_SCREENSET_SAVE_OTHERS
     end
 
-    ImGui.ImGui_SameLine(ctx)
+    ImGui.ImGui_SameLine(ctx, 0, 4)
     if PairLikeButton(ctx, "btn_screenset", label, pw*1.67, false) then
       if cmd and cmd > 0 then
         reaper.Main_OnCommand(cmd, 0)
@@ -77,7 +143,7 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
       end
     end
     
-    ImGui.ImGui_SameLine(ctx)
+    ImGui.ImGui_SameLine(ctx, 0, 4)
     if PairLikeButton(ctx, "btn_fx_windows", "FX", pw, any_open) then
       if any_open then
         -- Close all FX windows
@@ -137,7 +203,7 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
     -- Track the initial max value (set once, never changes)
     OV_MAX_NOTES_INITIAL = OV_MAX_NOTES_INITIAL or (OV_MAX_NOTES_BRIGHTNESS or 40)
     
-    ImGui.ImGui_SameLine(ctx)
+    ImGui.ImGui_SameLine(ctx, 0, 4)
     ImGui.ImGui_SetNextItemWidth(ctx, 80)
     local slider_flags = ImGui.ImGui_SliderFlags_NoInput()
     local changed, new_val = ImGui.ImGui_SliderInt(ctx, "##brightness", OV_MAX_NOTES_BRIGHTNESS or 40, 1, OV_MAX_NOTES_INITIAL, "%d", slider_flags)
@@ -149,7 +215,7 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
     end
     
     -- Notes visibility toggle button
-    ImGui.ImGui_SameLine(ctx)
+    ImGui.ImGui_SameLine(ctx, 0, 4)
     if PairLikeButton(ctx, "btn_show_notes", "Notes", pw * 1.2, OV_SHOW_NOTES) then
       OV_SHOW_NOTES = not OV_SHOW_NOTES
     end
@@ -157,7 +223,7 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
   
   -- Pro Keys toggle button (Keys tab only)
   if current_tab == "Keys" then
-    ImGui.ImGui_SameLine(ctx)
+    ImGui.ImGui_SameLine(ctx, 0, 4)
     if PairLikeButton(ctx, "btn_pro_keys", "Pro", pw, PRO_KEYS_ACTIVE) then
       PRO_KEYS_ACTIVE = not PRO_KEYS_ACTIVE
       -- Force the Keys tab to be re-selected after the display name changes
@@ -194,13 +260,15 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
     end
   end
 
-  -- MIDI FX toggle button (Vocals tab only)
+  -- Listen button (Vocals tab only) - toggle FX for selected vocals track, drag for volume
   if current_tab == "Vocals" then
     local trackname = VOCALS_TRACKS[VOCALS_MODE]
     local fx_enabled = get_track_fx_enabled(trackname)
+    local current_vol = get_track_volume(trackname) or 1.0
     
-    ImGui.ImGui_SameLine(ctx)
-    if PairLikeButton(ctx, "btn_midi_fx", "MIDI", pw, fx_enabled) then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    local listen_clicked, _ = ListenButtonWithVolume(ctx, "btn_vocals_listen", "Listen", pw, fx_enabled, current_vol, trackname)
+    if listen_clicked then
       local ctrl  = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Ctrl())
       local shift = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Shift())
       local alt   = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Alt())
@@ -243,6 +311,7 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
       else
         toggle_track_fx_enabled(trackname)
       end
+      reaper.defer(redirect_focus_after_click)
     end
   end
 end
@@ -323,7 +392,7 @@ function Progress_UI_Draw()
 
         progress_and_count_row(ctx, redirect_focus_after_click)
 
-        local footer_h   = ImGui.ImGui_GetFrameHeight(ctx) + FOOTER_PAD
+        local footer_h   = (ImGui.ImGui_GetFrameHeight(ctx) * 2) + FOOTER_PAD + 4  -- Two rows of buttons
         local avail_h    = select(2, ImGui.ImGui_GetContentRegionAvail(ctx))
         local table_h    = math.max(20, avail_h - footer_h)
 
@@ -334,6 +403,9 @@ function Progress_UI_Draw()
           ImGui.ImGui_EndChild(ctx)
         end
 
+        -- Editor row (above footer)
+        draw_editor_row(ctx, PAIR_W, redirect_focus_after_click)
+        
         -- Footer buttons
         draw_footer(ctx, PAIR_W, redirect_focus_after_click)
       end

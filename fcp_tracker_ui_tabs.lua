@@ -102,6 +102,9 @@ function handle_tab_height_switch(ctx, new_tab)
     -- Trigger Align action for floating FX windows
     reaper.SetExtState(EXT_NS, EXT_LINEUP, "SAVE_RUN", true)
   end
+  
+  -- Update MCP visibility: show audio tracks, hide MIDI-only tracks
+  set_mcp_visibility_for_audio_tracks()
 end
 
 function tabs_row(ctx, redirect_focus_after_click)

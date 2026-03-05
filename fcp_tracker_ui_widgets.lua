@@ -278,3 +278,114 @@ function PairLikeButton(ctx, id, label, w, is_active)
 
   return clicked
 end
+
+-- Global drag state for Listen button volume control
+LISTEN_DRAG_STATE = LISTEN_DRAG_STATE or {
+  dragging = false,
+  start_y = 0,
+  start_vol = 0,
+}
+
+-- Global flag to suppress paint-toggle while Listen button is being dragged
+LISTEN_DRAG_ACTIVE = false
+
+-- Volume curve exponent for logarithmic feel (higher = more range for quiet volumes)
+local VOLUME_CURVE = 2.5
+
+-- Convert linear volume (0-1) to visual position (0-1) with curve
+local function vol_to_pos(vol)
+  return vol ^ (1 / VOLUME_CURVE)
+end
+
+-- Convert visual position (0-1) to linear volume (0-1) with curve
+local function pos_to_vol(pos)
+  return pos ^ VOLUME_CURVE
+end
+
+-- Listen button with volume drag control and visual indicator
+-- Returns: clicked (boolean), volume_changed (boolean)
+function ListenButtonWithVolume(ctx, id, label, w, is_active, volume, trackname)
+  local base_active   = ImGui.ImGui_ColorConvertDouble4ToU32(0.50, 0.50, 0.50, 1.0)
+  local base_inactive = ImGui.ImGui_ColorConvertDouble4ToU32(0.22, 0.22, 0.22, 1.0)
+  local dark_overlay  = ImGui.ImGui_ColorConvertDouble4ToU32(0.0, 0.0, 0.0, 0.4)  -- Darken below line
+  local vol_line_col  = ImGui.ImGui_ColorConvertDouble4ToU32(1.0, 1.0, 1.0, 0.8)  -- Volume indicator line
+
+  local h = ImGui.ImGui_GetFrameHeight(ctx)
+  local x, y = ImGui.ImGui_GetCursorScreenPos(ctx)
+
+  ImGui.ImGui_InvisibleButton(ctx, id, w, h)
+  local hovered = ImGui.ImGui_IsItemHovered(ctx)
+  local held    = ImGui.ImGui_IsItemActive(ctx)
+  local clicked = false
+  local volume_changed = false
+  
+  -- Handle drag for volume control
+  local _, mouse_y = ImGui.ImGui_GetMousePos(ctx)
+  
+  if held then
+    if not LISTEN_DRAG_STATE.dragging then
+      -- Start dragging
+      LISTEN_DRAG_STATE.dragging = true
+      LISTEN_DRAG_ACTIVE = true  -- Suppress paint-toggle globally
+      LISTEN_DRAG_STATE.start_y = mouse_y
+      -- Store starting position (not volume) for smoother dragging
+      LISTEN_DRAG_STATE.start_pos = vol_to_pos(volume or 1.0)
+    else
+      -- Continue dragging - calculate position change, then convert to volume
+      local delta_y = LISTEN_DRAG_STATE.start_y - mouse_y  -- Positive = drag up = increase
+      local sensitivity = 0.01  -- Position change per pixel
+      local new_pos = LISTEN_DRAG_STATE.start_pos + (delta_y * sensitivity)
+      new_pos = math.max(0.0, math.min(1.0, new_pos))
+      local new_vol = pos_to_vol(new_pos)
+      
+      if trackname and math.abs(new_vol - (volume or 1.0)) > 0.001 then
+        set_track_volume(trackname, new_vol)
+        volume_changed = true
+      end
+    end
+  else
+    if LISTEN_DRAG_STATE.dragging then
+      -- Just released
+      local delta_y = math.abs(mouse_y - LISTEN_DRAG_STATE.start_y)
+      if delta_y < 3 then
+        -- Small movement = click
+        clicked = true
+      end
+      LISTEN_DRAG_STATE.dragging = false
+      LISTEN_DRAG_ACTIVE = false  -- Re-enable paint-toggle
+    end
+  end
+
+  -- Draw button background
+  local fill = is_active and base_active or base_inactive
+  if hovered then fill = lighten_u32(fill, 0.20) end
+  if held    then fill = lighten_u32(fill, 0.10) end
+
+  local dl = ImGui.ImGui_GetWindowDrawList(ctx)
+  ImGui.ImGui_DrawList_AddRectFilled(dl, x, y, x+w, y+h, fill, 4)
+  
+  -- Draw volume indicator (darker portion above the volume line = unfilled)
+  -- Use curved position for visual display
+  local vol = volume or 1.0
+  local vol_pos = vol_to_pos(vol)  -- Convert to visual position
+  local vol_y = y + h * (1.0 - vol_pos)  -- Volume line position (bottom = full volume)
+  
+  -- Dark overlay above volume line (unfilled portion)
+  if vol_pos < 1.0 then
+    ImGui.ImGui_DrawList_AddRectFilled(dl, x, y, x+w, vol_y, dark_overlay, 4)
+  end
+  
+  -- Volume indicator line
+  if vol_pos > 0.0 and vol_pos < 1.0 then
+    ImGui.ImGui_DrawList_AddLine(dl, x+2, vol_y, x+w-2, vol_y, vol_line_col, 2)
+  end
+  
+  -- Border
+  ImGui.ImGui_DrawList_AddRect(dl, x, y, x+w, y+h, lighten_u32(fill, 0.05), 4, 0, 1)
+
+  -- Label
+  local tw, th = ImGui.ImGui_CalcTextSize(ctx, label)
+  ImGui.ImGui_DrawList_AddText(dl, x + (w - tw)*0.5, y + (h - th)*0.5, COL_TEXT, label)
+
+  return clicked, volume_changed
+end
