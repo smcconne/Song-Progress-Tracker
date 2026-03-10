@@ -133,7 +133,10 @@ Features:
       </version>
     </reapack>
     <reapack name="FCP Venue Preview Lighting Camera.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+      <version name="1.0.1" author="FinestCardboardPearls">
+        <changelog><![CDATA[Spritesheet png filesize optimized to be 4x smaller with no visible loss in quality
+        
+All spritesheets where the first frame wasn't part of the same camera cut have been fixed]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Venue%20Preview%20Lighting%20Camera.lua</source>
         <!-- Camera spritesheets -->
         <source file="Spritesheets/Camera/AllBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/AllBehind_spritesheet.png</source>
