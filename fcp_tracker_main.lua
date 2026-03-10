@@ -31,7 +31,7 @@
 -- Rock Band Song Progress Tracker
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
-SCRIPT_VERSION = "1.0.3"
+SCRIPT_VERSION = "1.0.4"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
