@@ -16,16 +16,23 @@ Additional utility scripts for MIDI editing, tempo prediction, and difficulty sw
   </metadata>
   <category name="Song Progress Tracker">
     <reapack name="FCP Song Progress Tracker.lua" type="script">
-      <version name="1.0.4" author="FinestCardboardPearls">
-        <changelog><![CDATA[Initial ReaPack release
+      <metadata>
+        <description><![CDATA[Multi-tab interface for tracking Rock Band song authoring progress.
+
+My goal is to make this a complete authoring companion toolkit to streamline charting
 
 Features:
 - Multi-tab interface for tracking Rock Band song progress
-- FX chain alignment and screenset management
-- Jump Regions integration for quick navigation
+- RBN Preview floating FX window alignment and screenset management
+- Integrations with common charting tools for quick context switching
+- Import separated stems to the correct tracks
+- Create regions from practice sections
+- Overdrive table showing note density with guides to help with placement
+- Jump between Regions while preserving relative position
 - Pro Keys MIDI editing support
-- Template management for drum/vocal/keys tracks
-]]></changelog>
+]]></description>
+      </metadata>
+      <version name="1.0.4" author="FinestCardboardPearls">
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_main.lua</source>
         <source file="fcp_tracker_config.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_config.lua</source>
         <source file="fcp_tracker_chunk_parse.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_chunk_parse.lua</source>
@@ -128,11 +135,31 @@ Features:
       </version>
     </reapack>
     <reapack name="FCP Spectracular Patcher.lua" type="script">
-      <version name="3.0" author="FinestCardboardPearls">
+      <metadata>
+        <description><![CDATA[Patches talagan's Spectracular with helpful vocals charting functionality.
+
+Added features:
+- Ctrl or Alt + scroll to zoom vertically or horizontally by small amounts
+- Shift + scroll to pan horizontally
+- Click to both place edit cursor and set the active note row; after mouse-off, focus is directed to the active MIDI editor
+- Double click to place a note (fills approximate width or falls back to a 128th note)
+- Shows MIDI notes on spectrogram (displays lyric events if present); notes are selectable and resizable on the spectrogram
+- Right click to put edit cursor at 1/3 of view (hold to follow)
+- Reasonable default horizontal / vertical zoom
+]]></description>
+      </metadata>
+      <version name="3.1" author="FinestCardboardPearls">
+        <changelog><![CDATA[- Scrub is now triggered while dragging note edges
+- MIDI Lock added so notes aren't editable while active
+]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Spectracular%20Patcher.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Venue Preview Lighting Camera.lua" type="script">
+      <metadata>
+        <description><![CDATA[Animated sprite previewer for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
+]]></description>
+      </metadata>
       <version name="1.0.1" author="FinestCardboardPearls">
         <changelog><![CDATA[Spritesheet png filesize optimized to be 4x smaller with no visible loss in quality
         

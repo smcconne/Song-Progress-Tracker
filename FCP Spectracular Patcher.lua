@@ -1,6 +1,6 @@
 -- @description Patch Spectracular defaults (zoom + curves + window min size + wheel behaviour + MIDI note overlay with lyrics + note preview) for Spectracular 3.x
 -- @author FinestCardboardPearls
--- @version 3.0
+-- @version 3.1
 -- @noindex
 
 local function fail(msg)
@@ -115,7 +115,8 @@ local function patch_settings(path)
   -- FCP: Add viewport persistence settings to SettingDefs
   local viewport_settings = [[  ViewportVB          = { type = "double",  default = nil },
   ViewportVT          = { type = "double",  default = nil },
-  ViewportUSpan       = { type = "double",  default = nil },]]
+  ViewportUSpan       = { type = "double",  default = nil },
+  LockMIDI            = { type = "bool",    default = false },]]
 
   if txt:find("ViewportVB", 1, true) then
       reaper.ShowConsoleMsg("Spectracular defaults patch: settings.lua viewport settings already present.\n")
@@ -130,6 +131,26 @@ local function patch_settings(path)
           reaper.ShowConsoleMsg("Spectracular defaults patch: settings.lua viewport settings added.\n")
       else
           reaper.ShowConsoleMsg("Spectracular defaults patch: warning, could not add viewport settings to SettingDefs.\n")
+      end
+  end
+
+  -- FCP: Ensure LockMIDI setting exists (may be missing if viewport settings were added by an older patch)
+  if txt:find("LockMIDI", 1, true) then
+      reaper.ShowConsoleMsg("Spectracular defaults patch: settings.lua LockMIDI setting already present.\n")
+  else
+      local lock_setting = [[  LockMIDI            = { type = "bool",    default = false },]]
+      local anchor = "ViewportUSpan"
+      local anchor_line = txt:match("[^\n]*ViewportUSpan[^\n]*")
+      if anchor_line then
+          local new_txt, n_insert = plain_replace(txt, anchor_line, anchor_line .. "\n" .. lock_setting)
+          if n_insert > 0 then
+              txt = new_txt
+              reaper.ShowConsoleMsg("Spectracular defaults patch: settings.lua LockMIDI setting added.\n")
+          else
+              reaper.ShowConsoleMsg("Spectracular defaults patch: warning, could not add LockMIDI setting.\n")
+          end
+      else
+          reaper.ShowConsoleMsg("Spectracular defaults patch: warning, could not find anchor for LockMIDI setting.\n")
       end
   end
 
@@ -742,7 +763,8 @@ end
     if ImGui.IsMouseDoubleClicked(ctx, ImGui.MouseButton_Left)
        and not preempt
        and not over_lr
-       and inside then
+       and inside
+       and not S.getSetting("LockMIDI") then
         
         local me = reaper.MIDIEditor_GetActive()
         if me then
@@ -996,8 +1018,16 @@ end
        and inside then
 
         -- FCP: Check if clicking on a note edge (5 pixel threshold)
-        local edgeInfo = findNoteEdge(mx, my, 5)
+        local edgeInfo = not S.getSetting("LockMIDI") and findNoteEdge(mx, my, 5) or nil
         if edgeInfo then
+            -- Compute the snapped time of the clicked edge immediately
+            local edge_ppq = (edgeInfo.edge == "left") and edgeInfo.startppq or edgeInfo.endppq
+            local edge_time = reaper.MIDI_GetProjTimeFromPPQPos(edgeInfo.take, edge_ppq)
+            local edge_qn = reaper.TimeMap2_timeToQN(0, edge_time)
+            local step = 1/32  -- 1/128th note in QN
+            local snappedQN = math.floor(edge_qn / step + 0.5) * step
+            local snapped_time = reaper.TimeMap2_QNToTime(0, snappedQN)
+
             -- Start edge drag mode
             self.edge_drag = {
                 idx = edgeInfo.idx,
@@ -1009,8 +1039,19 @@ end
                 chan = edgeInfo.chan,
                 vel = edgeInfo.vel,
                 selected = edgeInfo.selected,
-                muted = edgeInfo.muted
+                muted = edgeInfo.muted,
+                last_snapped_time = snapped_time
             }
+
+            -- Move edit cursor and scrub immediately on click
+            reaper.SetEditCurPos(snapped_time, false, false)
+            reaper.PreventUIRefresh(1)
+            reaper.Main_OnCommand(41188, 0) -- Scrub: Enable looped-segment scrub at edit cursor
+            reaper.PreventUIRefresh(-1)
+            local token = tostring(reaper.time_precise()) .. "-" .. tostring(math.random())
+            reaper.SetExtState(EXT_SECTION, "token", token, false)
+            start_auto_stop_scrub(token, DURATION_MS)
+
             self.click = nil  -- Don't do normal click behavior
             return
         end
@@ -1084,61 +1125,75 @@ end
         end
     end
 
-    -- Mouse drag, left button: edge drag OR pan
-    if not preempt and ImGui.IsMouseDragging(ctx, ImGui.MouseButton_Left) then
-        -- FCP: Handle note edge dragging
-        if self.edge_drag then
-            local sac = self:spectrumContext()
-            if sac and sac.signal then
-                -- Convert mouse X to time
-                local relx = (mx - self.x) / self.w
-                if relx < 0 then relx = 0 elseif relx > 1 then relx = 1 end
-                local u = self.vp_u_l + relx * (self.vp_u_r - self.vp_u_l)
-                local t = sac.signal.start + u * (sac.signal.stop - sac.signal.start)
-                
-                -- Snap to 1/128th note grid
-                local qn = reaper.TimeMap2_timeToQN(0, t)
-                local step = 1/32  -- 1/128th note in QN
-                local snappedQN = math.floor(qn / step + 0.5) * step
-                local snapped_time = reaper.TimeMap2_QNToTime(0, snappedQN)
-                local new_ppq = reaper.MIDI_GetPPQPosFromProjTime(self.edge_drag.take, snapped_time)
-                
-                local new_startppq = self.edge_drag.orig_startppq
-                local new_endppq = self.edge_drag.orig_endppq
-                
-                if self.edge_drag.edge == "left" then
-                    -- Don't allow start to go past end (leave at least 1 grid step)
-                    local min_len_qn = step
-                    local end_time = reaper.MIDI_GetProjTimeFromPPQPos(self.edge_drag.take, self.edge_drag.orig_endppq)
-                    local end_qn = reaper.TimeMap2_timeToQN(0, end_time)
-                    local min_start_qn = end_qn - min_len_qn
-                    if snappedQN >= min_start_qn then
-                        snappedQN = min_start_qn - step
-                        snapped_time = reaper.TimeMap2_QNToTime(0, snappedQN)
-                        new_ppq = reaper.MIDI_GetPPQPosFromProjTime(self.edge_drag.take, snapped_time)
-                    end
-                    new_startppq = new_ppq
-                else
-                    -- Don't allow end to go before start (leave at least 1 grid step)
-                    local min_len_qn = step
-                    local start_time = reaper.MIDI_GetProjTimeFromPPQPos(self.edge_drag.take, self.edge_drag.orig_startppq)
-                    local start_qn = reaper.TimeMap2_timeToQN(0, start_time)
-                    local min_end_qn = start_qn + min_len_qn
-                    if snappedQN <= min_end_qn then
-                        snappedQN = min_end_qn + step
-                        snapped_time = reaper.TimeMap2_QNToTime(0, snappedQN)
-                        new_ppq = reaper.MIDI_GetPPQPosFromProjTime(self.edge_drag.take, snapped_time)
-                    end
-                    new_endppq = new_ppq
+    -- Mouse drag, left button: edge drag (no deadzone) OR pan
+    -- FCP: Edge drag uses IsMouseDown to bypass ImGui's drag deadzone for fine 128th-note control
+    if not preempt and self.edge_drag and ImGui.IsMouseDown(ctx, ImGui.MouseButton_Left) then
+        local sac = self:spectrumContext()
+        if sac and sac.signal then
+            -- Convert mouse X to time
+            local relx = (mx - self.x) / self.w
+            if relx < 0 then relx = 0 elseif relx > 1 then relx = 1 end
+            local u = self.vp_u_l + relx * (self.vp_u_r - self.vp_u_l)
+            local t = sac.signal.start + u * (sac.signal.stop - sac.signal.start)
+            
+            -- Snap to 1/128th note grid
+            local qn = reaper.TimeMap2_timeToQN(0, t)
+            local step = 1/32  -- 1/128th note in QN
+            local snappedQN = math.floor(qn / step + 0.5) * step
+            local snapped_time = reaper.TimeMap2_QNToTime(0, snappedQN)
+            local new_ppq = reaper.MIDI_GetPPQPosFromProjTime(self.edge_drag.take, snapped_time)
+            
+            local new_startppq = self.edge_drag.orig_startppq
+            local new_endppq = self.edge_drag.orig_endppq
+            
+            if self.edge_drag.edge == "left" then
+                -- Don't allow start to go past end (leave at least 1 grid step)
+                local min_len_qn = step
+                local end_time = reaper.MIDI_GetProjTimeFromPPQPos(self.edge_drag.take, self.edge_drag.orig_endppq)
+                local end_qn = reaper.TimeMap2_timeToQN(0, end_time)
+                local min_start_qn = end_qn - min_len_qn
+                if snappedQN >= min_start_qn then
+                    snappedQN = min_start_qn - step
+                    snapped_time = reaper.TimeMap2_QNToTime(0, snappedQN)
+                    new_ppq = reaper.MIDI_GetPPQPosFromProjTime(self.edge_drag.take, snapped_time)
                 end
-                
-                -- Update the note in place
-                reaper.MIDI_SetNote(self.edge_drag.take, self.edge_drag.idx, self.edge_drag.selected, self.edge_drag.muted, new_startppq, new_endppq, self.edge_drag.chan, self.edge_drag.pitch, self.edge_drag.vel, true)
+                new_startppq = new_ppq
+            else
+                -- Don't allow end to go before start (leave at least 1 grid step)
+                local min_len_qn = step
+                local start_time = reaper.MIDI_GetProjTimeFromPPQPos(self.edge_drag.take, self.edge_drag.orig_startppq)
+                local start_qn = reaper.TimeMap2_timeToQN(0, start_time)
+                local min_end_qn = start_qn + min_len_qn
+                if snappedQN <= min_end_qn then
+                    snappedQN = min_end_qn + step
+                    snapped_time = reaper.TimeMap2_QNToTime(0, snappedQN)
+                    new_ppq = reaper.MIDI_GetPPQPosFromProjTime(self.edge_drag.take, snapped_time)
+                end
+                new_endppq = new_ppq
             end
-            return
+            
+            -- Update the note in place
+            reaper.MIDI_SetNote(self.edge_drag.take, self.edge_drag.idx, self.edge_drag.selected, self.edge_drag.muted, new_startppq, new_endppq, self.edge_drag.chan, self.edge_drag.pitch, self.edge_drag.vel, true)
+            
+            -- FCP: Move edit cursor to the dragged edge and scrub on each grid step change
+            if snapped_time ~= self.edge_drag.last_snapped_time then
+                self.edge_drag.last_snapped_time = snapped_time
+                reaper.SetEditCurPos(snapped_time, false, false)
+                
+                -- Trigger timed scrub
+                reaper.PreventUIRefresh(1)
+                reaper.Main_OnCommand(41188, 0) -- Scrub: Enable looped-segment scrub at edit cursor
+                reaper.PreventUIRefresh(-1)
+                local token = tostring(reaper.time_precise()) .. "-" .. tostring(math.random())
+                reaper.SetExtState(EXT_SECTION, "token", token, false)
+                start_auto_stop_scrub(token, DURATION_MS)
+            end
         end
+        return
+    end
 
-        -- Normal pan behavior
+    -- Normal pan (uses IsMouseDragging with default deadzone)
+    if not preempt and ImGui.IsMouseDragging(ctx, ImGui.MouseButton_Left) then
         if self.mw and self.mw.rmse_widget and not self.mw.rmse_widget.dragged and self.click then
             local ddx    = dx / self.w
             local uSpan  = (self.vp_u_r - self.vp_u_l)
@@ -1206,7 +1261,7 @@ end
             local sac = self:spectrumContext()
             if sac and sac.signal and sac.signal.stop > sac.signal.start then
                 -- FCP: Check if clicking on a note - select it
-                local noteAtPos = findNoteAtPosition(mx, my)
+                local noteAtPos = not S.getSetting("LockMIDI") and findNoteAtPosition(mx, my) or nil
                 if noteAtPos then
                     -- Deselect all notes first, then select this one
                     local me = reaper.MIDIEditor_GetActive()
@@ -1528,7 +1583,7 @@ end]]
     if self:containsPoint(mx,my) and not self.lr_mix_widget:containsPoint(mx, my) and not popup_open then
         -- FCP: Check if hovering over a note edge - draw resize cursor instead
         local on_note_edge = false
-        local me = reaper.MIDIEditor_GetActive()
+        local me = not S.getSetting("LockMIDI") and reaper.MIDIEditor_GetActive() or nil
         if me then
             local take = reaper.MIDIEditor_GetTake(me)
             if take then
@@ -1886,7 +1941,7 @@ local function patch_app(path)
   local old_refresh = get_function_block(txt, refresh_sig)
 
   local new_refresh = [[local function refreshOptionsWidgets(ctx)
-    local v, b = ImGui.Checkbox(ctx, "Time select", S.instance_params.keep_time_selection)
+    local v, b = ImGui.Checkbox(ctx, "Time", S.instance_params.keep_time_selection)
     if v then
         S.instance_params.keep_time_selection = b
         S.setSetting("KeepTimeSelection", b)
@@ -1895,7 +1950,7 @@ local function patch_app(path)
 
     SL(ctx)
 
-    local v, b = ImGui.Checkbox(ctx, "Track select", S.instance_params.keep_track_selection)
+    local v, b = ImGui.Checkbox(ctx, "Track", S.instance_params.keep_track_selection)
     if v then
         S.instance_params.keep_track_selection = b
         S.setSetting("KeepTrackSelection", b)
@@ -1904,13 +1959,8 @@ local function patch_app(path)
 
     SL(ctx)
 
-    local v, b = ImGui.Checkbox(ctx, "Auto refresh", S.instance_params.auto_refresh)
-    if v then
-        S.instance_params.auto_refresh = b
-        S.setSetting("AutoRefresh", b)
-    end
-    TT(ctx, "If this option is on, this Spectracular window will watch for changes\n\z
-             happening in the currently edited MIDI take and auto-refresh.")
+    ImGui.AlignTextToFramePadding(ctx)
+    ImGui.TextColored(ctx, 0xCC88FFFF, "selection on")
 
     SL(ctx)
 
@@ -1920,17 +1970,26 @@ local function patch_app(path)
 
     SL(ctx)
 
+    local v, b = ImGui.Checkbox(ctx, "Auto", S.instance_params.auto_refresh)
+    if v then
+        S.instance_params.auto_refresh = b
+        S.setSetting("AutoRefresh", b)
+    end
+    TT(ctx, "If this option is on, this Spectracular window will watch for changes\n\z
+             happening in the currently edited MIDI take and auto-refresh.")
+
+    SL(ctx)
+
     ImGui.AlignTextToFramePadding(ctx)
-    ImGui.Text(ctx, "(?)")
+    ImGui.TextColored(ctx, 0xCC88FFFF, "Lock:")
 
-    if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Left) then
-        local cx, cy        = ImGui.GetWindowPos(ctx)
-        HelpWindow.open(cx,cy)
-    end
+    SL(ctx)
 
-    if ImGui.IsItemHovered(ctx) and UTILS.isMouseStalled(0.5) then
-        ImGui.SetTooltip(ctx, "Click to open help")
+    local v, b = ImGui.Checkbox(ctx, "MIDI", S.getSetting("LockMIDI") or false)
+    if v then
+        S.setSetting("LockMIDI", b)
     end
+    TT(ctx, "When enabled, prevents MIDI note editing (insert/delete/resize) from the spectrograph")
 end]]
 
   if not old_refresh then
@@ -1954,12 +2013,10 @@ end]]
   local new_bottom = [[local function drawBottomSettings(ctx)
 
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 2, 2)
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 4, select(2, ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)))
     ImGui.BeginGroup(ctx)
 
     -- FCP: Compact layout (removed Analysis params label)
-    -- ImGui.AlignTextToFramePadding(ctx)
-    -- ImGui.TextColored(ctx, 0xCC88FFFF, "Analysis params")
-    -- SL(ctx)
     timeResolutionWidget(ctx)
     SL(ctx)
     FFTWidget(ctx)
@@ -1968,13 +2025,26 @@ end]]
     SL(ctx)
     RMSWidget(ctx)
 
+    SL(ctx)
+
+    ImGui.AlignTextToFramePadding(ctx)
+    ImGui.Text(ctx, "(?)")
+    if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Left) then
+        local cx, cy = ImGui.GetWindowPos(ctx)
+        HelpWindow.open(cx,cy)
+    end
+    if ImGui.IsItemHovered(ctx) and UTILS.isMouseStalled(0.5) then
+        ImGui.SetTooltip(ctx, "Click to open help")
+    end
+
+    ImGui.Spacing(ctx)
+
     ImGui.AlignTextToFramePadding(ctx)
     ImGui.TextColored(ctx, 0xCC88FFFF, "Keep:")
     SL(ctx)
     refreshOptionsWidgets(ctx)
     ImGui.EndGroup(ctx)
-    -- FCP: Buttons moved to refreshOptionsWidgets
-    ImGui.PopStyleVar(ctx)
+    ImGui.PopStyleVar(ctx, 2)
 end]]
 
   if not old_bottom then
