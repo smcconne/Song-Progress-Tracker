@@ -352,11 +352,13 @@ function Progress_UI_Draw()
     else
       tabs_row(ctx, redirect_focus_after_click)
       
-      -- Setup tab has its own content, skip normal header/table/footer
-      if current_tab == "Setup" then
+      -- Setup/Preferences tabs have their own content, skip normal header/table/footer
+      if current_tab == "Preferences" then
+        draw_prefs_tab(ctx)
+      elseif current_tab == "Setup" then
         draw_setup_tab(ctx)
       else
-        -- selection→tab follow (skip when on Overdrive or Setup to avoid switching away)
+        -- selection→tab follow (skip when on Overdrive, Setup, or Preferences to avoid switching away)
         -- Must run AFTER tabs_row so ImGui tab state is updated
         if current_tab ~= "Overdrive" and reaper.CountSelectedTracks(0) == 1 then
           local tr = reaper.GetSelectedTrack(0, 0)

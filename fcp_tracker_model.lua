@@ -1125,7 +1125,7 @@ function Progress_Tick()
     elseif current_tab == "Keys" and PRO_KEYS_ACTIVE then
       compute_pro_keys()
       last_pro_keys_active = PRO_KEYS_ACTIVE
-    elseif current_tab ~= "Setup" then
+    elseif current_tab ~= "Setup" and current_tab ~= "Preferences" then
       local tr = find_track_by_name(TAB_TRACK[current_tab])
       local tk = first_midi_take_on_track(tr)
       local sig = make_sig_for_take(tk)

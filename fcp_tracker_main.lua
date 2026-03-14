@@ -15,6 +15,7 @@
 --   [nomain] fcp_tracker_ui_dock.lua
 --   [nomain] fcp_tracker_ui_header.lua
 --   [nomain] fcp_tracker_ui_helpers.lua
+--   [nomain] fcp_tracker_ui_prefs.lua
 --   [nomain] fcp_tracker_ui_setup.lua
 --   [nomain] fcp_tracker_ui_table.lua
 --   [nomain] fcp_tracker_ui_tabs.lua
@@ -31,7 +32,7 @@
 -- Rock Band Song Progress Tracker
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
-SCRIPT_VERSION = "1.0.4"
+SCRIPT_VERSION = "1.0.5"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
@@ -58,12 +59,18 @@ local restored_tab = nil
 local retval, saved_tab = reaper.GetProjExtState(proj, EXT_NS, EXT_TAB_KEY)
 if saved_tab and saved_tab ~= "" then
   -- Validate saved tab is in TABS list
+  local matched = false
   for _, t in ipairs(TABS) do
     if t == saved_tab then
       current_tab = saved_tab
       restored_tab = saved_tab
+      matched = true
       break
     end
+  end
+  if not matched then
+    current_tab = "Preferences"
+    restored_tab = "Preferences"
   end
 end
 
@@ -104,6 +111,7 @@ local to_load = {
   "fcp_tracker_ui_tabs.lua",          -- NEW: tab bar rendering
   "fcp_tracker_ui_header.lua",        -- NEW: header row with buttons
   "fcp_tracker_ui_table.lua",         -- NEW: main region table
+  "fcp_tracker_ui_prefs.lua",         -- NEW: Prefs tab (Action Command IDs)
   "fcp_tracker_ui_setup.lua",         -- NEW: Setup tab (PRC events tool)
   "fcp_tracker_ui.lua",               -- Slimmed down coordinator
 }
@@ -170,8 +178,9 @@ if restored_tab == "Keys" and PRO_KEYS_ACTIVE then
   end
 end
 
--- Force SET mode at startup (skip if starting on Vocals, Overdrive, or Setup - no FX alignment needed)
-if restored_tab ~= "Vocals" and restored_tab ~= "Overdrive" and restored_tab ~= "Setup" then
+-- Force SET mode at startup only if the restored tab wants floating FX
+local startup_fx_tab = (restored_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or restored_tab
+if get_show_floating_fx(startup_fx_tab) then
   reaper.SetExtState(EXT_NS, EXT_FOCUS, "SET", false)
 end
 
@@ -310,12 +319,16 @@ local function main_loop()
         reaper.Main_OnCommand(40455, 0)  -- Screenset: Load window set #02
       elseif current_tab == "Overdrive" then
         reaper.Main_OnCommand(40456, 0)  -- Screenset: Load window set #03
-        -- Trigger Align action for floating FX windows
-        reaper.SetExtState(EXT_NS, EXT_LINEUP, "SAVE_RUN", true)
-      elseif current_tab == "Setup" then
-        -- Skip screenset loading and FX alignment for Setup tab
+      elseif current_tab == "Setup" or current_tab == "Preferences" then
+        -- Skip screenset loading for Setup/Preferences tab
       else
         reaper.Main_OnCommand(40454, 0)  -- Screenset: Load window set #01
+      end
+      -- Close floating FX if the saved preference says so;
+      -- opening + alignment is already handled by the SET signal in the driver loop
+      local fx_tab = (current_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or current_tab
+      if not get_show_floating_fx(fx_tab) then
+        close_floating_fx()
       end
       -- End startup mode - now tab switches can have normal side effects
       FCP_STARTUP_MODE = false

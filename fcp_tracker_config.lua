@@ -19,7 +19,7 @@ OUTLINE_PAD_X = 6
 OUTLINE_PAD_Y = 3
 
 -- Tabs and mappings
-TABS         = {"Setup","Drums","Bass","Guitar","Keys","Vocals","Venue","Overdrive"}
+TABS         = {"Preferences","Setup","Drums","Bass","Guitar","Keys","Vocals","Venue","Overdrive"}
 DIFFS        = {"Expert","Hard","Medium","Easy"}
 TAB_TRACK    = {Drums="PART DRUMS", Bass="PART BASS", Guitar="PART GUITAR", Keys="PART KEYS"}
 TRACK_TO_TAB = {

@@ -1190,29 +1190,6 @@ function draw_setup_tab(ctx)
       ImGui.ImGui_EndTable(ctx)
     end
     
-    -- Calculate space needed for version info (separator + 2 text lines + spacing)
-    local line_height = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
-    local version_height = line_height * 2 + 10  -- 2 lines + separator/spacing
-    
-    -- Get the child window's content height and set cursor to bottom
-    local child_h = ImGui.ImGui_GetWindowHeight(ctx)
-    local target_y = child_h - version_height
-    local current_y = ImGui.ImGui_GetCursorPosY(ctx)
-    
-    -- Only move down if there's room (version info stays at bottom)
-    if target_y > current_y then
-      ImGui.ImGui_SetCursorPosY(ctx, target_y)
-    end
-    
-    -- Version info at bottom of left column
-    
-    ImGui.ImGui_Spacing(ctx)
-    ImGui.ImGui_Separator(ctx)
-    ImGui.ImGui_Spacing(ctx)
-    local version_text = "v" .. (SCRIPT_VERSION or "?.?.?")
-    ImGui.ImGui_Text(ctx, "Version: " .. version_text)
-    ImGui.ImGui_Text(ctx, "(Updates via ReaPack)")
-    
     ImGui.ImGui_EndChild(ctx)
   end
   
@@ -1339,89 +1316,6 @@ function draw_setup_tab(ctx)
     ImGui.ImGui_Text(ctx, "Convert to Regions:")
     ImGui.ImGui_Spacing(ctx)
     if ImGui.ImGui_Button(ctx, "Convert All Practice Sections to Regions", 240, 0) then PRC_convert_to_regions() end
-    
-    ImGui.ImGui_EndChild(ctx)
-  end
-  
-  -- Vertical separator after middle column
-  ImGui.ImGui_SameLine(ctx)
-  local sep_x2, sep_y2 = ImGui.ImGui_GetCursorScreenPos(ctx)
-  ImGui.ImGui_DrawList_AddLine(draw_list, sep_x2, sep_y2 + 4, sep_x2, sep_y2 + avail_h, sep_color, 1.0)
-  ImGui.ImGui_Dummy(ctx, 8, 0)  -- spacing for separator
-  
-  -- RIGHT COLUMN: Action Command IDs
-  ImGui.ImGui_SameLine(ctx)
-  
-  -- Get remaining width for right column
-  local right_avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
-  
-  if ImGui.ImGui_BeginChild(ctx, "RightColumn", right_avail_w, avail_h, 0, ImGui.ImGui_WindowFlags_NoScrollbar()) then
-    ImGui.ImGui_Text(ctx, "Paste Action Command IDs here:")
-    ImGui.ImGui_Spacing(ctx)
-    ImGui.ImGui_Spacing(ctx)
-    
-    -- Initialize buffers from ExtState if not already done
-    if not SETUP_CMD_BUFFERS then
-      SETUP_CMD_BUFFERS = {
-        encore_vox    = reaper.GetExtState(EXT_NS, EXT_CMD_ENCORE_VOX) or "",
-        lyrics_clip   = reaper.GetExtState(EXT_NS, EXT_CMD_LYRICS_CLIP) or "",
-        spectracular  = reaper.GetExtState(EXT_NS, EXT_CMD_SPECTRACULAR) or "",
-        venue_preview = reaper.GetExtState(EXT_NS, EXT_CMD_VENUE_PREVIEW) or "",
-        pro_keys_preview = reaper.GetExtState(EXT_NS, EXT_CMD_PRO_KEYS_PREVIEW) or "",
-      }
-    end
-    
-    local label_w = 120
-    
-    -- Encore Vox Preview
-    ImGui.ImGui_Text(ctx, "Encore Vox Preview:")
-    ImGui.ImGui_SameLine(ctx, label_w)
-    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
-    local changed1, new_val1 = ImGui.ImGui_InputText(ctx, "##encore_vox", SETUP_CMD_BUFFERS.encore_vox)
-    if changed1 and new_val1 ~= SETUP_CMD_BUFFERS.encore_vox then
-      SETUP_CMD_BUFFERS.encore_vox = new_val1
-      reaper.SetExtState(EXT_NS, EXT_CMD_ENCORE_VOX, new_val1, true)
-    end
-    
-    -- Lyrics Clipboard
-    ImGui.ImGui_Text(ctx, "Lyrics Clipboard:")
-    ImGui.ImGui_SameLine(ctx, label_w)
-    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
-    local changed2, new_val2 = ImGui.ImGui_InputText(ctx, "##lyrics_clip", SETUP_CMD_BUFFERS.lyrics_clip)
-    if changed2 and new_val2 ~= SETUP_CMD_BUFFERS.lyrics_clip then
-      SETUP_CMD_BUFFERS.lyrics_clip = new_val2
-      reaper.SetExtState(EXT_NS, EXT_CMD_LYRICS_CLIP, new_val2, true)
-    end
-    
-    -- Spectracular (runs with Vocals tab)
-    ImGui.ImGui_Text(ctx, "Spectracular Stereo:")
-    ImGui.ImGui_SameLine(ctx, label_w)
-    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
-    local changed3, new_val3 = ImGui.ImGui_InputText(ctx, "##spectracular", SETUP_CMD_BUFFERS.spectracular)
-    if changed3 and new_val3 ~= SETUP_CMD_BUFFERS.spectracular then
-      SETUP_CMD_BUFFERS.spectracular = new_val3
-      reaper.SetExtState(EXT_NS, EXT_CMD_SPECTRACULAR, new_val3, true)
-    end
-    
-    -- Venue Preview (runs with Venue tab)
-    ImGui.ImGui_Text(ctx, "Venue Preview:")
-    ImGui.ImGui_SameLine(ctx, label_w)
-    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
-    local changed4, new_val4 = ImGui.ImGui_InputText(ctx, "##venue_preview", SETUP_CMD_BUFFERS.venue_preview)
-    if changed4 and new_val4 ~= SETUP_CMD_BUFFERS.venue_preview then
-      SETUP_CMD_BUFFERS.venue_preview = new_val4
-      reaper.SetExtState(EXT_NS, EXT_CMD_VENUE_PREVIEW, new_val4, true)
-    end
-    
-    -- Pro Keys Preview (runs with Pro Keys tab)
-    ImGui.ImGui_Text(ctx, "Pro Keys Preview:")
-    ImGui.ImGui_SameLine(ctx, label_w)
-    ImGui.ImGui_SetNextItemWidth(ctx, -1)  -- Fill remaining width
-    local changed5, new_val5 = ImGui.ImGui_InputText(ctx, "##pro_keys_preview", SETUP_CMD_BUFFERS.pro_keys_preview)
-    if changed5 and new_val5 ~= SETUP_CMD_BUFFERS.pro_keys_preview then
-      SETUP_CMD_BUFFERS.pro_keys_preview = new_val5
-      reaper.SetExtState(EXT_NS, EXT_CMD_PRO_KEYS_PREVIEW, new_val5, true)
-    end
     
     ImGui.ImGui_EndChild(ctx)
   end
