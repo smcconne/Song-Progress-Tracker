@@ -1,6 +1,6 @@
 -- @description FCP Song Progress Tracker
 -- @author FinestCardboardPearls
--- @version 1.0.3
+-- @version 2.0
 -- @provides
 --   [nomain] fcp_tracker_config.lua
 --   [nomain] fcp_tracker_chunk_parse.lua
@@ -32,7 +32,7 @@
 -- Rock Band Song Progress Tracker
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
-SCRIPT_VERSION = "1.0.5"
+SCRIPT_VERSION = "2.0"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
@@ -130,6 +130,10 @@ FCP_CTX = ImGui.ImGui_CreateContext(
 
 -- Initialize model + UI once
 Progress_Init(true)  -- skip_fx_align=true, startup has its own flow
+
+-- Auto-select leftmost incomplete difficulty for the restored tab
+auto_select_difficulty(current_tab)
+
 Progress_UI_Init(FCP_CTX)
 
 -- Show audio tracks in MCP, hide MIDI-only tracks
@@ -144,50 +148,14 @@ if restored_tab then
   Progress_UI_ForceSelectTab(restored_tab, 5)
 end
 
--- If starting on Keys tab with Pro Keys active, ensure MIDI editor is open
-if restored_tab == "Keys" and PRO_KEYS_ACTIVE then
-  -- Select the appropriate Pro Keys track
-  local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
-  local diff_key = diff_map[ACTIVE_DIFF] or "X"
-  local trackname = PRO_KEYS_TRACKS[diff_key]
-  
-  -- Find and select the track, then open MIDI editor
-  local n = reaper.CountTracks(0)
-  for i = 0, n - 1 do
-    local tr = reaper.GetTrack(0, i)
-    local ok, name = reaper.GetTrackName(tr)
-    if ok and name == trackname then
-      reaper.SetOnlyTrackSelected(tr)
-      -- Open MIDI editor if not already open
-      local me = reaper.MIDIEditor_GetActive()
-      if not me then
-        -- Select first MIDI item and open editor
-        local item_count = reaper.CountTrackMediaItems(tr)
-        for j = 0, item_count - 1 do
-          local item = reaper.GetTrackMediaItem(tr, j)
-          local take = reaper.GetActiveTake(item)
-          if take and reaper.TakeIsMIDI(take) then
-            reaper.SetMediaItemSelected(item, true)
-            reaper.Main_OnCommand(40153, 0)  -- Item: Open in built-in MIDI editor
-            break
-          end
-        end
-      end
-      break
-    end
-  end
-end
-
 -- Force SET mode at startup only if the restored tab wants floating FX
 local startup_fx_tab = (restored_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or restored_tab
 if get_show_floating_fx(startup_fx_tab) then
   reaper.SetExtState(EXT_NS, EXT_FOCUS, "SET", false)
 end
 
--- Start Jump Regions window if not on Setup tab
-if restored_tab ~= "Setup" and FCP_JUMP_REGIONS then
-  FCP_JUMP_REGIONS.start()
-end
+-- Jump Regions is now a headless module (UI drawn inline in table header)
+-- No separate window to start
 
 -- Save current tab, difficulty, and Pro Keys state on exit (project level)
 local function save_state_on_exit()
@@ -198,6 +166,16 @@ local function save_state_on_exit()
     reaper.SetProjExtState(proj, EXT_NS, EXT_DIFF_KEY, ACTIVE_DIFF)
   end
   reaper.SetProjExtState(proj, EXT_NS, EXT_PRO_KEYS_KEY, tostring(PRO_KEYS_ACTIVE or false))
+
+  -- Run any actions with "leaving tab set" enabled for the current tab
+  -- (dest="" means dest_in is always false, so only leaving-flagged actions fire)
+  if current_tab then
+    run_actions_on_tab_switch(current_tab, "")
+  end
+
+  -- Close floating FX windows and active MIDI editor on exit
+  close_floating_fx()
+  close_midi_editor_if_not_inline()
 end
 reaper.atexit(save_state_on_exit)
 
@@ -219,28 +197,21 @@ local function check_previews_signal()
         select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE], 40818, 40726)
       end
     elseif current_tab == "Venue" then
-      -- On Venue tab: EXPERT=Camera, HARD=Lighting, MEDIUM=toggle Venue track
-      if request == "MEDIUM" then
-        -- Toggle VENUE_TRACK_ACTIVE
-        VENUE_TRACK_ACTIVE = not VENUE_TRACK_ACTIVE
-        if VENUE_TRACK_ACTIVE then
-          -- Store current mode before switching
-          VENUE_PREV_MODE = VENUE_MODE
-          -- Select VENUE track and open in MIDI editor
-          select_and_scroll_track_by_name("VENUE", 40818, 40726)
-          -- Run 40452 then 40454 in MIDI editor
-          local me = reaper.MIDIEditor_GetActive()
-          if me then
-            reaper.MIDIEditor_OnCommand(me, 40452)
-            reaper.MIDIEditor_OnCommand(me, 40454)
-          end
+      -- On Venue tab: 1=Camera, 2=Lighting, 3=toggle Sing, 4=toggle Spot
+      if request == "MEDIUM" or request == "EASY" then
+        -- Toggle individual Sing/Spot
+        local toggling_sing = (request == "MEDIUM")
+        if toggling_sing then SING_ACTIVE = not SING_ACTIVE
+        else                  SPOT_ACTIVE = not SPOT_ACTIVE end
+
+        if SING_ACTIVE or SPOT_ACTIVE then
+          local order = (SING_ACTIVE and SPOT_ACTIVE) and SING_SPOT_NOTE_ORDER
+                     or SING_ACTIVE and SING_NOTE_ORDER
+                     or SPOT_NOTE_ORDER
+          apply_venue_note_order_and_select(order)
         else
-          -- Restore previous mode
-          local prev = VENUE_PREV_MODE or "Camera"
-          VENUE_MODE = prev
-          VENUE_TRACK_ACTIVE = false
+          -- Both off: restore current Camera/Lighting mode
           select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
-          -- Run 40452 then 40454 in MIDI editor
           local me = reaper.MIDIEditor_GetActive()
           if me then
             reaper.MIDIEditor_OnCommand(me, 40452)
@@ -252,9 +223,10 @@ local function check_previews_signal()
         local mode_map = { EXPERT="Camera", HARD="Lighting" }
         local new_mode = mode_map[request]
         if new_mode then
-          -- Disable Venue track mode when switching to Camera/Lighting
-          if VENUE_TRACK_ACTIVE then
-            VENUE_TRACK_ACTIVE = false
+          -- Disable Sing/Spot when switching to Camera/Lighting
+          if SING_ACTIVE or SPOT_ACTIVE then
+            SING_ACTIVE = false
+            SPOT_ACTIVE = false
           end
           if VENUE_MODE ~= new_mode then
             VENUE_MODE = new_mode
@@ -299,6 +271,12 @@ local function main_loop()
   -- Driver tick (from fcp_tracker_focus.lua)
   loop_tick()
   
+  -- Jump Regions: deferred MIDI recenter + external signal processing
+  if FCP_JUMP_REGIONS then
+    FCP_JUMP_REGIONS.tick()
+    FCP_JUMP_REGIONS.process_ext_signals()
+  end
+  
   -- UI tick
   Progress_Tick()
   local open = Progress_UI_Draw()
@@ -330,6 +308,36 @@ local function main_loop()
       if not get_show_floating_fx(fx_tab) then
         close_floating_fx()
       end
+      -- Enforce MIDI editor open/close preference for the startup tab
+      local me_tab = (current_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or current_tab
+      local want_midi_editor = get_midi_editor_open(me_tab)
+      local me_open = false
+      local me = reaper.MIDIEditor_GetActive()
+      if me and reaper.MIDIEditor_GetMode(me) == 0 then me_open = true end
+
+      if want_midi_editor and not me_open then
+        -- Open MIDI editor for the appropriate track
+        if current_tab == "Vocals" then
+          select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE], 40818, 40726)
+        elseif current_tab == "Venue" then
+          select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+        elseif current_tab == "Keys" and PRO_KEYS_ACTIVE then
+          local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
+          local diff_key = diff_map[ACTIVE_DIFF] or "X"
+          select_and_scroll_track_by_name(PRO_KEYS_TRACKS[diff_key], 40818, 40726)
+        elseif current_tab ~= "Setup" and current_tab ~= "Preferences" then
+          select_track_for_tab(current_tab)
+          local sel_tr = reaper.GetSelectedTrack(0, 0)
+          if sel_tr then select_first_midi_item_on_track(sel_tr) end
+        end
+      elseif not want_midi_editor and me_open then
+        close_midi_editor_if_not_inline()
+      end
+      -- Run per-action tab-switch scripts for the startup tab
+      -- Use "" as origin so every action whose tab list includes the startup tab will fire
+      run_actions_on_tab_switch("", current_tab)
+      disable_reasynth_except_for_tab(current_tab)
+      ensure_listen_fx_for_tab(current_tab)
       -- End startup mode - now tab switches can have normal side effects
       FCP_STARTUP_MODE = false
     end
@@ -337,11 +345,6 @@ local function main_loop()
   
   if open then
     reaper.defer(main_loop)
-  else
-    -- Progress Tracker closed - also stop Jump Regions window
-    if FCP_JUMP_REGIONS and FCP_JUMP_REGIONS.stop then
-      FCP_JUMP_REGIONS.stop()
-    end
   end
 end
 reaper.defer(main_loop)

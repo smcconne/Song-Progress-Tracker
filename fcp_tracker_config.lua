@@ -13,10 +13,14 @@ H          = 380
 
 FIRST_COL_W   = 82
 REGION_COL_W  = 82
+TIME_COL_W    = 50
 BTN_W         = 26
 BTN_GAP       = 6
 OUTLINE_PAD_X = 6
 OUTLINE_PAD_Y = 3
+
+-- Solo button state (nil = not soloed, string = parent track currently soloed)
+SOLO_ACTIVE_PARENT = nil
 
 -- Tabs and mappings
 TABS         = {"Preferences","Setup","Drums","Bass","Guitar","Keys","Vocals","Venue","Overdrive"}
@@ -43,6 +47,24 @@ DIFFS_PRO_KEYS = {"X", "H", "M", "E"}
 -- Venue sub-modes and track names
 VENUE_TRACKS = { Camera="CAMERA", Lighting="LIGHTING" }
 VENUE_MODES  = { "Camera", "Lighting" }
+
+-- Sing/Spot custom note orders for the VENUE track (MIDI note numbers)
+SPOT_NOTE_ORDER      = "  CUSTOM_NOTE_ORDER 37 38 39 40 41"
+SING_NOTE_ORDER      = "  CUSTOM_NOTE_ORDER 85 86 87"
+SING_SPOT_NOTE_ORDER = "  CUSTOM_NOTE_ORDER 37 38 39 40 41 84 85 86 87"
+
+-- Camera sub-mode note orders
+-- Single/Multi (undirected)
+CAMERA_SINGLE_NOTE_ORDER     = "  CUSTOM_NOTE_ORDER 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93"
+CAMERA_MULTI_NOTE_ORDER      = "  CUSTOM_NOTE_ORDER 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 95 96 97 98 99 100"
+-- Single/Multi (directed)
+CAMERA_SINGLE_DIR_NOTE_ORDER = "  CUSTOM_NOTE_ORDER 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49"
+CAMERA_MULTI_DIR_NOTE_ORDER  = "  CUSTOM_NOTE_ORDER 10 11 12 13 14 15 16 17 18 51 52 53 54 55 56"
+
+-- Lighting sub-mode note orders (Post = rows 41-71, Light = rows 13-39, Misc = rows 8-12 + 73-74)
+LIGHTING_POST_NOTE_ORDER  = "  CUSTOM_NOTE_ORDER 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72"
+LIGHTING_LIGHT_NOTE_ORDER = "  CUSTOM_NOTE_ORDER 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40"
+LIGHTING_MISC_NOTE_ORDER  = "  CUSTOM_NOTE_ORDER 8 9 10 11 12 73 74"
 
 -- Pitch ranges used by the model (non-vocals)
 PITCH_RANGE = { Expert={96,100}, Hard={84,88}, Medium={72,76}, Easy={60,64} }
@@ -103,6 +125,12 @@ EXT_CMD_SPECTRACULAR  = "CMD_SPECTRACULAR"
 EXT_CMD_VENUE_PREVIEW = "CMD_VENUE_PREVIEW"
 EXT_CMD_PRO_KEYS_PREVIEW = "CMD_PRO_KEYS_PREVIEW"
 
+-- Per-action tab list prefix (stored as comma-separated tab names)
+EXT_ACTION_TABS_PREFIX = "ACTION_TABS_"
+
+-- Per-action "leaving tab set" preference prefix
+EXT_ACTION_LEAVING_TAB_SET_PREFIX = "ACTION_LEAVING_TAB_SET_"
+
 -- Colors as U32 (requires ReaImGui but no context)
 local ImGui = reaper
 COL_RED     = ImGui.ImGui_ColorConvertDouble4ToU32(1,0,0,1)
@@ -132,7 +160,7 @@ OVERDRIVE_TRACKS = {"PART DRUMS", "PART BASS", "PART GUITAR", "PART KEYS"}
 OVERDRIVE_ROWS = {"Drums", "Bass", "Guitar", "Keys"}
 
 -- OV table brightness: max notes per measure for full brightness (1-100)
-OV_MAX_NOTES_BRIGHTNESS = OV_MAX_NOTES_BRIGHTNESS or 40
+OV_MAX_NOTES_BRIGHTNESS = OV_MAX_NOTES_BRIGHTNESS or 12
 
 -- OV table: show grey note rectangles (on by default)
 OV_SHOW_NOTES = (OV_SHOW_NOTES == nil) and true or OV_SHOW_NOTES

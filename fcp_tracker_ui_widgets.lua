@@ -27,8 +27,7 @@ local DIFF_TOOLTIPS = {
     Hard = "• 3-note chords max, span of 7th (11 semitones)\n" ..
            "• Avoid jumps > 7th\n" ..
            "• Usually remove >= 16th notes\n" ..
-           "• >110 bpm: thin 8ths to groups of 7\n" ..
-           "• >140 bpm: thin 8ths to groups of 3\n" ..
+           "• Thin 8ths to groups of 7 >110 bpm, groups of 3 >140 bpm\n" ..
            "• No glissando/trill\n" ..
            "• Lane shifts allowed, but remove if possible",
     Medium = "• 1/8th note space between sustained notes\n" ..
@@ -42,17 +41,16 @@ local DIFF_TOOLTIPS = {
            "• Avoid jumps > 5th (7 semitones)"
   },
   Keys = {
-    Expert = "• Green + Orange chords allowed\n" ..
+    Expert = "• [g]Green[/g] + [o]Orange[/o] chords allowed\n" ..
              "• Broken chords allowed\n" ..
              "• Chart new keyboard layers as they are introduced\n" ..
              "• Avoid playing simultaneous keyboard parts \n" ..
              "• Listen for subtle layers",
     Hard = "• Usually remove >= 16th notes\n" ..
            "• Retain chords\n" ..
-           "• Avoid quick Green to Orange jumps\n" ..
-           "• No 3-note or Green/Orange chords\n" ..
-           "• Avoid continuous 8ths >= 160 bpm\n" ..
-           "• Groups of 3 or 7 8ths for playability",
+           "• Avoid quick [g]Green[/g] to [o]Orange[/o] jumps\n" ..
+           "• No 3-note or [g]Green[/g]/[o]Orange[/o] chords\n" ..
+           "• Thin 8ths to groups of 7 >110 bpm, groups of 3 >140 bpm",
     Medium = "• Notes on strong quarter note beats\n" ..
              "• Retain chords from Hard\n" ..
              "• No 3-note chords\n" ..
@@ -62,41 +60,38 @@ local DIFF_TOOLTIPS = {
            "• No chords"
   },
   Drums = {
-    Expert = "• Use mk_slicer for kick, toms, snare\n" ..
-             "• 2x bass pedal for >2 consecutive 16ths\n" ..
-             "• With heel-toe, can hit steady 8ths or a couple 16ths on single pedal",
+    Expert = "• Use mk_slicer for [o]kick[/o], [y]t[/y][b]o[/b][g]m[/g]s, [r]snare[/r]\n" ..
+             "• [o]2x bass pedal[/o] for >2 consecutive 16ths\n" ..
+             "• With [o]heel-toe[/o], can hit steady 8ths or a couple 16ths on single pedal",
     Hard = "• Complete limb independence\n" ..
-           "• Kicks and snares can fall in between a steady right-hand rhythm.\n" ..
-           "• 2 consecutive 16ths allowed <140 bpm (unless both are kicks)\n" ..
-           "• Remove kicks during fills\n" ..
-           "• Avoid kicks under crashes (allowed when sparse) \n" ..
+           "• Steady right-hand rhythm, just [o]kicks[/o] and [r]snares[/r] in between.\n" ..
+           "• 2 consecutive 16ths allowed <140 bpm (except two [o]kicks[/o])\n" ..
+           "• Remove [o]kicks[/o] during fills\n" ..
+           "• Avoid [o]kicks[/o] under [g]crashes[/g] (allowed when gems are sparse)\n" ..
            "• No fast hand crosses\n" ..
-           "• >110 bpm: try thinning 8ths to groups of 7\n" ..
-           "• >140 bpm: try thinning 8ths to groups of 3",
-    Medium = "• No kicks/snares between hihat/ride gems\n" ..
-             "• No 3-limb hits\n" ..
-             "• 8ths ok up to 140 bpm\n" ..
-             "• >= 110 bpm: kicks only on quarter notes\n" ..
-             "• >= 170 bpm: one kick per measure\n" ..
-             "• Only downbeat crashes with kick\n" ..
-             "• Stream of gems must be playable with one hand",
-    Easy = "• No gems with kick\n" ..
-           "• 2-hand beat (no kick) OR kick + snare only\n" ..
-           "• Favor crashes instead of kicks\n" ..
-           "• >= 170 bpm: one kick per measure\n" ..
+           "• Thin 8ths to groups of 7 >110 bpm, groups of 3 >140 bpm",
+    Medium = "• No [o]kicks[/o]/[r]snares[/r] between [y]hihat[/y]/[b]ride[/b] gems\n" ..
+             "• No 3-limb hits, must be playable with one hand\n" ..
+             "• <140 bpm: 8ths ok\n" ..
+             "• >110 bpm: [o]kicks[/o] only on quarter notes\n" ..
+             "• >170 bpm: one [o]kick[/o] per measure\n" ..
+             "• Only downbeat [g]crashes[/g] with [o]kick[/o]",
+    Easy = "• No gems with [o]kick[/o]\n" ..
+           "• 2-hand beat (no [o]kick[/o]) OR [o]kick[/o] + [r]snare[/r] only\n" ..
+           "• Favor crashes instead of [o]kicks[/o]\n" ..
+           "• >170 bpm: one [o]kick[/o] per measure\n" ..
            "• Reduce 8th fills to quarter notes at tempo"
   },
   GuitarBass = {
-    Expert = "• No 3-note chords with Green + Orange\n" ..
-             "• 16th note space between sustains, 8th at >140bpm",
+    Expert = "• No 3-note chords with [g]Green[/g] + [o]Orange[/o]\n" ..
+             "• 16th note space between sustains, 8th at >140 bpm",
     Hard = "• Usually remove >= 16th notes\n" ..
-           "• >110 bpm: thin 8ths to groups of 7\n" ..
-           "• >140 bpm: thin 8ths to groups of 3\n" ..
+           "• Thin 8ths to groups of 7 >110 bpm, groups of 3 >140 bpm\n" ..
            "• Only 2 note chords allowed\n" ..
-           "• Avoid quick Green to Orange jumps",
+           "• Avoid quick [g]Green[/g] to [o]Orange[/o] jumps",
     Medium = "• Try for quarter notes\n" ..
              "• Maintain 4 lanes at a time\n" ..
-             "• Avoid G-B, G-O, R-O chords and jumps\n" ..
+             "• Avoid [g]G[/g]-[b]B[/b], [g]G[/g]-[o]O[/o], [r]R[/r]-[o]O[/o] chords and jumps\n" ..
              "• Avoid fast chord changes\n" ..
              "• 1/4 note between sustains",
     Easy = "• 1/2 note spaces\n" ..
@@ -122,6 +117,118 @@ local function get_diff_tooltip(diff)
   end
   
   return DIFF_TOOLTIPS[category] and DIFF_TOOLTIPS[category][diff]
+end
+
+-- Color tag lookup for tooltip rendering: [g]...[/g], [r]...[/r], etc.
+local TAG_COLORS = {
+  g = ImGui.ImGui_ColorConvertDouble4ToU32(0.18, 0.85, 0.18, 1.0),  -- Green
+  r = ImGui.ImGui_ColorConvertDouble4ToU32(0.90, 0.20, 0.20, 1.0),  -- Red
+  y = ImGui.ImGui_ColorConvertDouble4ToU32(0.95, 0.90, 0.15, 1.0),  -- Yellow
+  b = ImGui.ImGui_ColorConvertDouble4ToU32(0.20, 0.50, 0.95, 1.0),  -- Blue
+  o = ImGui.ImGui_ColorConvertDouble4ToU32(0.95, 0.55, 0.10, 1.0),  -- Orange
+}
+
+-- Render text with [g]...[/g] style color tags using DrawList for correct wrapping
+local function render_colored_text(ctx, text)
+  local dl = ImGui.ImGui_GetWindowDrawList(ctx)
+  local default_col = COL_TEXT
+  local line_step = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
+  local avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
+  local space_w = ImGui.ImGui_CalcTextSize(ctx, " ")
+  local sx, sy = ImGui.ImGui_GetCursorScreenPos(ctx)
+  local cy = sy
+
+  for line in (text .. "\n"):gmatch("(.-)\n") do
+    -- Pass 1: parse into flat runs {text, color} with tags stripped
+    local runs = {}
+    local pos = 1
+    while pos <= #line do
+      local ts, te, tc = line:find("%[([groyb])%]", pos)
+      if ts then
+        if ts > pos then
+          runs[#runs+1] = {line:sub(pos, ts - 1), default_col}
+        end
+        local cs, ce = line:find("%[/" .. tc .. "%]", te + 1)
+        if cs then
+          runs[#runs+1] = {line:sub(te + 1, cs - 1), TAG_COLORS[tc]}
+          pos = ce + 1
+        else
+          runs[#runs+1] = {line:sub(pos, te), default_col}
+          pos = te + 1
+        end
+      else
+        runs[#runs+1] = {line:sub(pos), default_col}
+        break
+      end
+    end
+
+    -- Pass 2: split runs into word groups separated by spaces
+    -- Each group is a list of {text, color} sub-runs forming one "word"
+    local groups = {}      -- list of {sub_runs, total_w, space_before}
+    local cur_group = {}   -- sub-runs for current word
+    local had_space = false
+
+    for _, run in ipairs(runs) do
+      local rtxt, rcol = run[1], run[2]
+      local ri = 1
+      while ri <= #rtxt do
+        local si = rtxt:find(" ", ri)
+        if si then
+          -- Text before the space belongs to current group
+          if si > ri then
+            cur_group[#cur_group+1] = {rtxt:sub(ri, si - 1), rcol}
+          end
+          -- Finish current group if non-empty
+          if #cur_group > 0 then
+            local tw = 0
+            for _, sr in ipairs(cur_group) do
+              tw = tw + ImGui.ImGui_CalcTextSize(ctx, sr[1])
+            end
+            groups[#groups+1] = {cur_group, tw, had_space}
+            cur_group = {}
+          end
+          had_space = true
+          ri = si + 1
+        else
+          -- Rest of run is part of current word
+          cur_group[#cur_group+1] = {rtxt:sub(ri), rcol}
+          break
+        end
+      end
+    end
+    -- Flush last group
+    if #cur_group > 0 then
+      local tw = 0
+      for _, sr in ipairs(cur_group) do
+        tw = tw + ImGui.ImGui_CalcTextSize(ctx, sr[1])
+      end
+      groups[#groups+1] = {cur_group, tw, had_space}
+    end
+
+    -- Pass 3: render word groups with wrapping
+    local cx = sx
+    local max_x = sx + avail_w
+
+    for _, grp in ipairs(groups) do
+      local sub_runs, tw, sp = grp[1], grp[2], grp[3]
+      local needed = tw + (sp and space_w or 0)
+      if cx + needed > max_x and cx > sx then
+        cy = cy + line_step
+        cx = sx
+        sp = false
+      end
+      if sp then cx = cx + space_w end
+      for _, sr in ipairs(sub_runs) do
+        local sw = ImGui.ImGui_CalcTextSize(ctx, sr[1])
+        ImGui.ImGui_DrawList_AddText(dl, cx, cy, sr[2], sr[1])
+        cx = cx + sw
+      end
+    end
+
+    cy = cy + line_step
+  end
+
+  ImGui.ImGui_Dummy(ctx, avail_w, cy - sy)
 end
 
 -- Difficulty square button (colored by progress percentage)
@@ -180,8 +287,6 @@ function DiffSquareButton(ctx, label, diff, is_active, custom_w, force_grey)
       local instrument_name = current_tab
       if current_tab == "Keys" and PRO_KEYS_ACTIVE then
         instrument_name = "Pro Keys"
-      elseif current_tab == "Guitar" or current_tab == "Bass" then
-        instrument_name = "Guitar/Bass"
       end
       local header_text = diff .. " " .. instrument_name
       local pct_text = tostring(pct) .. "%"
@@ -203,7 +308,7 @@ function DiffSquareButton(ctx, label, diff, is_active, custom_w, force_grey)
       -- Separator and advice text
       ImGui.ImGui_Separator(ctx)
       ImGui.ImGui_PushTextWrapPos(ctx, tooltip_w - 10)
-      ImGui.ImGui_Text(ctx, tooltip)
+      render_colored_text(ctx, tooltip)
       ImGui.ImGui_PopTextWrapPos(ctx)
       
       ImGui.ImGui_EndTooltip(ctx)
@@ -289,17 +394,26 @@ LISTEN_DRAG_STATE = LISTEN_DRAG_STATE or {
 -- Global flag to suppress paint-toggle while Listen button is being dragged
 LISTEN_DRAG_ACTIVE = false
 
--- Volume curve exponent for logarithmic feel (higher = more range for quiet volumes)
-local VOLUME_CURVE = 2.5
+-- dB range for Listen button handle
+local LISTEN_DB_MIN = -40   -- bottom of range (treat as -inf)
+local LISTEN_DB_MAX = -12   -- top of range
+local LISTEN_DB_RANGE = LISTEN_DB_MAX - LISTEN_DB_MIN  -- 88
 
--- Convert linear volume (0-1) to visual position (0-1) with curve
+-- Convert ReaSynth linear volume to visual position (0-1)
 local function vol_to_pos(vol)
-  return vol ^ (1 / VOLUME_CURVE)
+  if not vol or vol <= 0 then return 0 end
+  local db = 20 * math.log(vol, 10)
+  if db <= LISTEN_DB_MIN then return 0 end
+  if db >= LISTEN_DB_MAX then return 1 end
+  return (db - LISTEN_DB_MIN) / LISTEN_DB_RANGE
 end
 
--- Convert visual position (0-1) to linear volume (0-1) with curve
+-- Convert visual position (0-1) to ReaSynth linear volume
 local function pos_to_vol(pos)
-  return pos ^ VOLUME_CURVE
+  if pos <= 0 then return 0 end
+  if pos >= 1 then return 10 ^ (LISTEN_DB_MAX / 20) end
+  local db = LISTEN_DB_MIN + pos * LISTEN_DB_RANGE
+  return 10 ^ (db / 20)
 end
 
 -- Listen button with volume drag control and visual indicator
@@ -329,7 +443,7 @@ function ListenButtonWithVolume(ctx, id, label, w, is_active, volume, trackname)
       LISTEN_DRAG_ACTIVE = true  -- Suppress paint-toggle globally
       LISTEN_DRAG_STATE.start_y = mouse_y
       -- Store starting position (not volume) for smoother dragging
-      LISTEN_DRAG_STATE.start_pos = vol_to_pos(volume or 1.0)
+      LISTEN_DRAG_STATE.start_pos = vol_to_pos(volume or 0)
     else
       -- Continue dragging - calculate position change, then convert to volume
       local delta_y = LISTEN_DRAG_STATE.start_y - mouse_y  -- Positive = drag up = increase
@@ -338,8 +452,8 @@ function ListenButtonWithVolume(ctx, id, label, w, is_active, volume, trackname)
       new_pos = math.max(0.0, math.min(1.0, new_pos))
       local new_vol = pos_to_vol(new_pos)
       
-      if trackname and math.abs(new_vol - (volume or 1.0)) > 0.001 then
-        set_track_volume(trackname, new_vol)
+      if trackname and math.abs(new_vol - (volume or 0)) > 0.001 then
+        set_reasynth_volume(trackname, new_vol)
         volume_changed = true
       end
     end
@@ -366,7 +480,7 @@ function ListenButtonWithVolume(ctx, id, label, w, is_active, volume, trackname)
   
   -- Draw volume indicator (darker portion above the volume line = unfilled)
   -- Use curved position for visual display
-  local vol = volume or 1.0
+  local vol = volume or 0
   local vol_pos = vol_to_pos(vol)  -- Convert to visual position
   local vol_y = y + h * (1.0 - vol_pos)  -- Volume line position (bottom = full volume)
   
@@ -376,7 +490,7 @@ function ListenButtonWithVolume(ctx, id, label, w, is_active, volume, trackname)
   end
   
   -- Volume indicator line
-  if vol_pos > 0.0 and vol_pos < 1.0 then
+  if vol_pos > 0.0 then
     ImGui.ImGui_DrawList_AddLine(dl, x+2, vol_y, x+w-2, vol_y, vol_line_col, 2)
   end
   

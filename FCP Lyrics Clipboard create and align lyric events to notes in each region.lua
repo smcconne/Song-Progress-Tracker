@@ -1,5 +1,5 @@
--- @description Lyrics to MIDI on Selected Track Item: next lyric word on every new note, manual‐undo note+lyric (v2.19)
--- @version 2.19
+-- @description Lyrics Clipboard: create and align lyric events to notes in each region
+-- @version 2.20
 -- @author FinestCardboardPearls
 -- @about
 --   • Run in the Main context on a selected track’s first MIDI item.  
@@ -263,6 +263,19 @@ local textboxFocusedThisFrame = false     -- current frame's focus state
 local textboxHadFocusRecently = false     -- persists until + button uses it
 local savedCursorPos = 0                  -- cursor position saved when textbox loses focus
 
+-- Allowed track names for Apply mode
+local APPLY_ALLOWED_TRACKS = {
+  ["PART VOCALS"] = true, ["PART HARM1"] = true, ["PART HARM2"] = true, ["PART HARM3"] = true,
+  ["HARM1"] = true, ["HARM2"] = true, ["HARM3"] = true,
+}
+
+local function isTrackAllowedForApply()
+  local tr = reaper.GetSelectedTrack(0, 0)
+  if not tr then return false end
+  local _, name = reaper.GetTrackName(tr)
+  return APPLY_ALLOWED_TRACKS[name] == true
+end
+
 -- Apply Lyrics toggle state
 local applyLyricsEnabled = false
 local lastAppliedLyrics = nil
@@ -296,19 +309,46 @@ local function getRegionNotePPQsString()
   return table.concat(ppqs, ",")
 end
 
+-- Refresh take from currently selected track (in case user changed selection)
+local function refreshTake()
+  local tr = reaper.GetSelectedTrack(0, 0)
+  if not tr then return end
+  local item = reaper.GetTrackMediaItem(tr, 0)
+  if not item then return end
+  local newTake = reaper.GetActiveTake(item)
+  if not (newTake and reaper.TakeIsMIDI(newTake)) then return end
+  if newTake ~= take then
+    take = newTake
+    -- Track changed: turn off Apply mode
+    if applyLyricsEnabled then
+      applyLyricsEnabled = false
+      pendingApplyTime = nil
+    end
+    -- Refresh seenPPQs for new take
+    seenPPQs = {}
+    reaper.MIDI_Sort(take)
+    local _, noteCnt = reaper.MIDI_CountEvts(take)
+    for i = 0, noteCnt - 1 do
+      local _, _, _, sp = reaper.MIDI_GetNote(take, i)
+      seenPPQs[sp] = true
+    end
+  end
+end
+
 reaper.atexit(function() end)
 
 -------------------------------------------------------------------------------
 -- 5) MAIN UI + LOOP (Undo now removes both lyric *and* note)
 -------------------------------------------------------------------------------
 local function loop()
+  refreshTake()
   reaper.ImGui_SetNextWindowSize(ctx,600,400,reaper.ImGui_Cond_FirstUseEver())
   local pad = 9
   reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_WindowPadding(),pad,pad)
   reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_ItemSpacing(),pad,pad)
 
   local flags = reaper.ImGui_WindowFlags_NoCollapse()
-  local vis   = reaper.ImGui_Begin(ctx,"Lyrics to MIDI",nil,flags)
+  local vis   = reaper.ImGui_Begin(ctx,"Lyrics Clipboard",nil,flags)
   if vis then
     -- [+]
     if reaper.ImGui_Button(ctx,"+",40,0) then
@@ -497,7 +537,11 @@ local function loop()
       reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x3377EEFF)
     end
     if reaper.ImGui_Button(ctx, applyLyricsEnabled and "Apply ON" or "Apply OFF", 80, 0) then
-      applyLyricsEnabled = not applyLyricsEnabled
+      if not applyLyricsEnabled and not isTrackAllowedForApply() then
+        -- Don't enable if track is not allowed
+      else
+        applyLyricsEnabled = not applyLyricsEnabled
+      end
       if applyLyricsEnabled then
         -- Initialize change tracking state
         lastAppliedLyrics = lyrics

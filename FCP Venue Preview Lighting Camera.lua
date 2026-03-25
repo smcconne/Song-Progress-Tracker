@@ -17,7 +17,7 @@ local SPRITESHEET_DIRS = {
     PostProc = SCRIPT_DIR .. "Spritesheets/PostProc/",
 }
 
-local ctx = reaper.ImGui_CreateContext("Venue notes at cursor")
+local ctx = reaper.ImGui_CreateContext("Venue Preview")
 
 -- Sprite sheet animation settings
 local SPRITE_COLS = 8
@@ -43,7 +43,7 @@ local instrument_mode = "GB"
 local camera_fallback_name = nil
 local camera_fallback_for_note = nil  -- Which filtered note name this fallback is for
 
--- Manual lighting state (for pitches 34-39: Verse, Chorus, Manual_Cool, Manual_Warm, Dischord, Stomp)
+-- Manual lighting state (for pitches 34-40: Verse, Chorus, Manual_Cool, Manual_Warm, Dischord, Stomp)
 -- State: false = OFF (show frame 0), true = ON (show last frame)
 local manual_light_state = false
 -- Track the toggle time in project time (when the prev/next note starts)
@@ -55,7 +55,7 @@ local manual_light_animating_forward = false
 -- Skip animation and jump directly to target frame (when manual light starts with toggle)
 local manual_light_skip_animation = false
 -- Manual lighting pitches
-local MANUAL_LIGHT_PITCHES = { [34] = true, [35] = true, [36] = true, [37] = true, [38] = true, [39] = true }
+local MANUAL_LIGHT_PITCHES = { [34] = true, [35] = true, [36] = true, [37] = true, [38] = true, [39] = true, [40] = true }
 -- Prev/Next pitches (toggle manual light)
 local PREV_NEXT_PITCHES = { [30] = true, [31] = true }
 -- First pitch (forces manual light off)
@@ -994,6 +994,46 @@ local function GetNextPostProcEventTime(track, afterTime)
     return next_time
 end
 
+-- Get the next post-processing note-on after the given time, returning full note info
+-- Returns: { name, pitch, startTime } or nil
+local function GetNextPostProcNote(track, afterTime)
+    if not track then return nil end
+    
+    local next_note = nil
+    local numItems = reaper.CountTrackMediaItems(track)
+    
+    for i = 0, numItems - 1 do
+        local item = reaper.GetTrackMediaItem(track, i)
+        local numTakes = reaper.CountTakes(item)
+        
+        for t = 0, numTakes - 1 do
+            local take = reaper.GetTake(item, t)
+            if take and reaper.TakeIsMIDI(take) then
+                local _, noteCount = reaper.MIDI_CountEvts(take)
+                for n = 0, noteCount - 1 do
+                    local _, selected, muted, startppq, endppq, chan, pitch, vel = reaper.MIDI_GetNote(take, n)
+                    if pitch >= POSTPROC_PITCH_MIN and pitch <= POSTPROC_PITCH_MAX then
+                        local noteStart = reaper.MIDI_GetProjTimeFromPPQPos(take, startppq)
+                        if noteStart > afterTime then
+                            if next_note == nil or noteStart < next_note.startTime then
+                                local name = reaper.GetTrackMIDINoteNameEx(0, track, pitch, 0)
+                                if not name or name == "" then
+                                    local NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
+                                    local octave = math.floor(pitch / 12) - 1
+                                    name = NOTE_NAMES[(pitch % 12) + 1] .. octave
+                                end
+                                next_note = { name = name, pitch = pitch, startTime = noteStart }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return next_note
+end
+
 -- Get the most recently ended post-proc notes with their end time
 -- Returns: (notes table with endTime field, latest end time or nil)
 local function GetLastEndedPostProcNotesWithTime(track, timePos)
@@ -1930,8 +1970,13 @@ local function ModeWouldFilterAllNotes(cameraNotes, mode)
 end
 
 -- Main loop function
+local first_frame = true
 local function MainLoop()
-    local visible, open = reaper.ImGui_Begin(ctx, "Venue notes at cursor", true)
+    if first_frame then
+        reaper.ImGui_SetNextWindowSize(ctx, 450, 322)
+        first_frame = false
+    end
+    local visible, open = reaper.ImGui_Begin(ctx, "Venue Preview", true)
     
     if visible then
         -- Get cursor position and camera notes early so we can check button colors
@@ -2095,13 +2140,73 @@ local function MainLoop()
             end
         end
         
-        -- Draw Camera block (centered horizontally)
-        local windowWidth = reaper.ImGui_GetContentRegionAvail(ctx)
-        local cameraBlockWidth = SPRITE_DISPLAY_W
-        local centerOffset = (windowWidth - cameraBlockWidth) / 2
-        if centerOffset > 0 then
-            reaper.ImGui_SetCursorPosX(ctx, reaper.ImGui_GetCursorPosX(ctx) + centerOffset)
+        -- ========== ROW 1: Venue (left column) + Camera (right) ==========
+        
+        -- Check for singalong warnings (needed for Venue display)
+        local singalongWarnings = CheckSingalongWarnings(cursorPos)
+        
+        -- Draw Venue column (left, fixed width)
+        local VENUE_COLUMN_WIDTH = 120
+        reaper.ImGui_BeginGroup(ctx)
+        reaper.ImGui_Text(ctx, "Venue:")
+        reaper.ImGui_SameLine(ctx, VENUE_COLUMN_WIDTH)
+        reaper.ImGui_Dummy(ctx, 0, 0)
+        if venueTrack then
+            local allVenueNotes = GetNotesAtPosition(venueTrack, cursorPos)
+            
+            -- Filter venue notes to only include pitches 37-41 and 85-87
+            local venueNotes = {}
+            for _, note in ipairs(allVenueNotes) do
+                if (note.pitch >= 37 and note.pitch <= 41) or (note.pitch >= 85 and note.pitch <= 87) then
+                    table.insert(venueNotes, note)
+                end
+            end
+            
+            -- Separate spotlight notes from other venue notes
+            local spotlightNotes = {}
+            local otherNotes = {}
+            for _, note in ipairs(venueNotes) do
+                if note.pitch >= 37 and note.pitch <= 41 then
+                    table.insert(spotlightNotes, note)
+                else
+                    table.insert(otherNotes, note)
+                end
+            end
+            
+            -- Display other venue notes first
+            for _, note in ipairs(otherNotes) do
+                reaper.ImGui_Text(ctx, "  " .. note.name)
+            end
+            
+            -- Display spotlight notes under "Spotlight:" header
+            if #spotlightNotes > 0 then
+                reaper.ImGui_Text(ctx, "  Spotlight:")
+                for _, note in ipairs(spotlightNotes) do
+                    -- Strip "Spotlight on " prefix for brevity
+                    local shortName = note.name:gsub("^[Ss]potlight on ", "")
+                    reaper.ImGui_Text(ctx, "    " .. shortName)
+                end
+            end
+            
+            -- Display singalong warnings under "No Singalong:" header
+            if #singalongWarnings > 0 then
+                reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), COLOR_RED)
+                reaper.ImGui_Text(ctx, "  No Singalong:")
+                for _, warning in ipairs(singalongWarnings) do
+                    local capitalized = warning:sub(1,1):upper() .. warning:sub(2)
+                    reaper.ImGui_Text(ctx, "    " .. capitalized)
+                end
+                reaper.ImGui_PopStyleColor(ctx)
+            end
+        else
+            reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), COLOR_GREY)
+            reaper.ImGui_Text(ctx, "  (track not found)")
+            reaper.ImGui_PopStyleColor(ctx)
         end
+        reaper.ImGui_EndGroup(ctx)
+        
+        -- Camera block (fixed position to the right of Venue column)
+        reaper.ImGui_SameLine(ctx, VENUE_COLUMN_WIDTH)
         reaper.ImGui_BeginGroup(ctx)
         if usingDirectedCut and directedCutDisplay.shouldShow then
             -- Draw directed cut with calculated frame
@@ -2184,9 +2289,9 @@ local function MainLoop()
         reaper.ImGui_EndGroup(ctx)
         
         -- Draw instrument mode buttons to the right of Camera (stacked vertically)
-        reaper.ImGui_SameLine(ctx, 0, 40)  -- 40px spacing to the right
+        reaper.ImGui_SameLine(ctx, 0, 39)  -- 39px spacing to the right
         reaper.ImGui_BeginGroup(ctx)
-        reaper.ImGui_Dummy(ctx, 1, 40)  -- 40px down
+        reaper.ImGui_Dummy(ctx, 1, 46)  -- 46px down
         
         -- GB button: light red if active+issue, blue if active, red if issue, default otherwise
         if gb_active and gb_has_issue then
@@ -2239,6 +2344,8 @@ local function MainLoop()
         
         local postProcNotes = {}
         local postProcFadingNotes = {}  -- Notes that are fading out (ended but before next note starts)
+        local postProcIncomingNote = nil  -- Next note fading in (overlaid on top of fading out)
+        local postProcIncomingOpacity = 0  -- Opacity of incoming note (0 to 1)
         local postProcIsGreyed = false
         local postProcShowDefault = false  -- Special flag for default state
         if lightingTrack then
@@ -2290,6 +2397,13 @@ local function MainLoop()
                             local fadeWindow = nextEventTime - lastEndTime
                             local fadeProgress = (cursorPos - lastEndTime) / fadeWindow
                             opacity = math.max(0, 1.0 - fadeProgress)
+                            
+                            -- Find the incoming note and calculate its fade-in opacity
+                            local nextNote = GetNextPostProcNote(lightingTrack, lastEndTime)
+                            if nextNote and math.abs(nextNote.startTime - nextEventTime) < 0.001 then
+                                postProcIncomingNote = nextNote
+                                postProcIncomingOpacity = math.min(1.0, fadeProgress)
+                            end
                         end
                         -- If no next event, keep at full opacity (greyed but visible)
                         
@@ -2335,33 +2449,95 @@ local function MainLoop()
                 local note = postProcNotes[1]  -- Take the first (only) active note
                 DrawSingleNoteBlock("Post-Proc", note, "PostProc", postProcIsGreyed)
             elseif #postProcFadingNotes > 0 then
-                -- Draw single fading note
+                -- Draw single fading note with optional incoming note crossfade
                 local note = postProcFadingNotes[1]
-                -- Draw label with faded text
-                local textAlpha = math.floor(note.fadeOpacity * 128)  -- Grey text fades too
-                local fadedTextColor = 0x88888800 | textAlpha
-                reaper.ImGui_Text(ctx, "Post-Proc: ")
-                reaper.ImGui_SameLine(ctx, 0, 0)
-                reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), fadedTextColor)
-                reaper.ImGui_Text(ctx, GetDisplayName(note.name))
-                reaper.ImGui_PopStyleColor(ctx)
                 
-                -- Draw spritesheet with opacity (Default uses BKNear from Camera folder)
+                -- Show incoming note name if available, otherwise show fading note name
+                if postProcIncomingNote and postProcIncomingOpacity > 0 then
+                    local inAlpha = math.floor(postProcIncomingOpacity * 255)
+                    local inTextColor = 0xFFFFFF00 | inAlpha
+                    reaper.ImGui_Text(ctx, "Post-Proc: ")
+                    reaper.ImGui_SameLine(ctx, 0, 0)
+                    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), inTextColor)
+                    reaper.ImGui_Text(ctx, GetDisplayName(postProcIncomingNote.name))
+                    reaper.ImGui_PopStyleColor(ctx)
+                else
+                    local textAlpha = math.floor(note.fadeOpacity * 128)
+                    local fadedTextColor = 0x88888800 | textAlpha
+                    reaper.ImGui_Text(ctx, "Post-Proc: ")
+                    reaper.ImGui_SameLine(ctx, 0, 0)
+                    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), fadedTextColor)
+                    reaper.ImGui_Text(ctx, GetDisplayName(note.name))
+                    reaper.ImGui_PopStyleColor(ctx)
+                end
+                
+                -- Draw fading-out spritesheet
                 local spritesheet_data
                 if note.pitch == POSTPROC_DEFAULT_PITCH then
                     spritesheet_data = FindSpritesheet("Camera", "BKNear")
                 else
                     spritesheet_data = FindSpritesheet("PostProc", note.name)
                 end
+                
+                -- Remember position before drawing for incoming overlay
+                local overlayX, overlayY = reaper.ImGui_GetCursorScreenPos(ctx)
+                
                 if spritesheet_data then
                     if note.pitch == POSTPROC_DEFAULT_PITCH then
-                        -- For Default, draw static first frame with opacity
                         DrawStaticFirstFrameWithOpacity(spritesheet_data, note.fadeOpacity)
                     else
                         DrawCameraSpritesheetWithOpacity(spritesheet_data, note.name, note.fadeOpacity)
                     end
                 else
                     reaper.ImGui_Dummy(ctx, SPRITE_DISPLAY_W, SPRITE_DISPLAY_H)
+                end
+                
+                -- Overlay incoming note spritesheet on top (fading in)
+                if postProcIncomingNote and postProcIncomingOpacity > 0 then
+                    local incomingData
+                    if postProcIncomingNote.pitch == POSTPROC_DEFAULT_PITCH then
+                        incomingData = FindSpritesheet("Camera", "BKNear")
+                    else
+                        incomingData = FindSpritesheet("PostProc", postProcIncomingNote.name)
+                    end
+                    if incomingData and incomingData.image and reaper.ImGui_ValidatePtr(incomingData.image, "ImGui_Image*") then
+                        local image = incomingData.image
+                        local frame_count = incomingData.frame_count or (SPRITE_COLS * SPRITE_ROWS)
+                        local cols = incomingData.cols or SPRITE_COLS
+                        local img_w, img_h = reaper.ImGui_Image_GetSize(image)
+                        local tile_w = SPRITE_DISPLAY_W + SPRITE_BORDER * 2
+                        local tile_h = SPRITE_DISPLAY_H + SPRITE_BORDER * 2
+                        
+                        -- Calculate current frame
+                        local normalized = NormalizeNoteNameForFile(postProcIncomingNote.name)
+                        current_active_notes[normalized] = true
+                        if not last_active_notes[normalized] then
+                            sprite_start_times[normalized] = reaper.time_precise()
+                        end
+                        local start_time = sprite_start_times[normalized] or reaper.time_precise()
+                        local elapsed = reaper.time_precise() - start_time
+                        local current_frame
+                        if postProcIncomingNote.pitch == POSTPROC_DEFAULT_PITCH then
+                            current_frame = 0
+                        else
+                            current_frame = math.floor(elapsed * SPRITE_FRAME_RATE) % frame_count
+                        end
+                        
+                        local col = current_frame % cols
+                        local row = math.floor(current_frame / cols)
+                        local uv0_x = (col * tile_w + SPRITE_BORDER) / img_w
+                        local uv0_y = (row * tile_h + SPRITE_BORDER) / img_h
+                        local uv1_x = ((col + 1) * tile_w - SPRITE_BORDER) / img_w
+                        local uv1_y = ((row + 1) * tile_h - SPRITE_BORDER) / img_h
+                        
+                        local alpha = math.floor(postProcIncomingOpacity * 255)
+                        local tint_col = 0xFFFFFF00 | alpha
+                        local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+                        reaper.ImGui_DrawList_AddImage(draw_list, image,
+                            overlayX, overlayY,
+                            overlayX + SPRITE_DISPLAY_W, overlayY + SPRITE_DISPLAY_H,
+                            uv0_x, uv0_y, uv1_x, uv1_y, tint_col)
+                    end
                 end
             end
             
@@ -2450,55 +2626,6 @@ local function MainLoop()
         end
         
         reaper.ImGui_EndGroup(ctx)
-        
-        -- ========== ROW 3: Venue ==========
-        
-        -- Check for singalong warnings
-        local singalongWarnings = CheckSingalongWarnings(cursorPos)
-        
-        if venueTrack then
-            local allVenueNotes = GetNotesAtPosition(venueTrack, cursorPos)
-            
-            -- Filter venue notes to only include pitches 37-41 and 85-87
-            local venueNotes = {}
-            for _, note in ipairs(allVenueNotes) do
-                if (note.pitch >= 37 and note.pitch <= 41) or (note.pitch >= 85 and note.pitch <= 87) then
-                    table.insert(venueNotes, note)
-                end
-            end
-            
-            -- Display singalong warnings first
-            if #singalongWarnings > 0 then
-                for _, warning in ipairs(singalongWarnings) do
-                    reaper.ImGui_Text(ctx, "Venue: ")
-                    reaper.ImGui_SameLine(ctx, 0, 0)
-                    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), COLOR_RED)
-                    reaper.ImGui_Text(ctx, "no " .. warning .. " singalong")
-                    reaper.ImGui_PopStyleColor(ctx)
-                end
-            end
-            
-            if #venueNotes > 0 then
-                -- Build comma-separated list of note names
-                local noteNames = {}
-                for _, note in ipairs(venueNotes) do
-                    table.insert(noteNames, note.name)
-                end
-                reaper.ImGui_Text(ctx, "Venue: " .. table.concat(noteNames, ", "))
-            else
-                reaper.ImGui_Text(ctx, "Venue: ")
-                reaper.ImGui_SameLine(ctx, 0, 0)
-                reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), COLOR_GREY)
-                reaper.ImGui_Text(ctx, "none")
-                reaper.ImGui_PopStyleColor(ctx)
-            end
-        else
-            reaper.ImGui_Text(ctx, "Venue: ")
-            reaper.ImGui_SameLine(ctx, 0, 0)
-            reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), COLOR_GREY)
-            reaper.ImGui_Text(ctx, "(track not found)")
-            reaper.ImGui_PopStyleColor(ctx)
-        end
         
         -- Update last_active_notes for next frame comparison
         last_active_notes = current_active_notes

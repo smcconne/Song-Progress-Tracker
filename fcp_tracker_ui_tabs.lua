@@ -29,22 +29,8 @@ function handle_tab_height_switch(ctx, new_tab)
   -- Skip during project switch - model handles screenset load
   if PROJECT_SWITCH_MODE then return end
   
-  -- Handle Jump Regions window visibility based on tab
   -- Tabs that share Setup-like behavior (no screenset, close MIDI editor, etc.)
   local SETUP_LIKE = { Setup = true, Preferences = true }
-  
-  if FCP_JUMP_REGIONS then
-    if SETUP_LIKE[new_tab] then
-      -- Close Jump Regions when switching to Setup/Prefs
-      FCP_JUMP_REGIONS.stop()
-    elseif SETUP_LIKE[current_tab] and not SETUP_LIKE[new_tab] then
-      -- Open Jump Regions when switching from Setup/Prefs to any other tab
-      FCP_JUMP_REGIONS.start()
-    elseif not FCP_JUMP_REGIONS.is_running() and not SETUP_LIKE[new_tab] then
-      -- Ensure Jump Regions is running on non-Setup/Prefs tabs
-      FCP_JUMP_REGIONS.start()
-    end
-  end
   
   -- Determine direction of switch
   local is_switching_to_vocals   = (new_tab == "Vocals"    and current_tab ~= "Vocals")
@@ -219,6 +205,7 @@ function tabs_row(ctx, redirect_focus_after_click)
       if ImGui.ImGui_BeginTabItem(ctx, display_name, nil, flags) then
         if current_tab ~= name then
           handle_tab_height_switch(ctx, name)
+          local was_tab    = current_tab
           local was_vocals = (current_tab == "Vocals")
           local was_setup  = (current_tab == "Setup" or current_tab == "Preferences")
           local was_venue  = (current_tab == "Venue")
@@ -227,6 +214,9 @@ function tabs_row(ctx, redirect_focus_after_click)
           local is_venue   = (name == "Venue")
           if name == "Preferences" then set_prefs_dropdown_for_tab(current_tab) end
           current_tab = name
+          
+          -- Auto-select leftmost incomplete difficulty for the new tab
+          auto_select_difficulty(name)
           
           -- Update TCP visibility based on Setup mode
           if is_setup ~= was_setup then
@@ -294,20 +284,12 @@ function tabs_row(ctx, redirect_focus_after_click)
               if sel_tr2 then select_first_midi_item_on_track(sel_tr2) end
             end
           end
-          -- Only run Encore preview when switching to or from Vocals (not during startup)
-          if not FCP_STARTUP_MODE and (was_vocals or is_vocals) then
-            start_encore_vox_preview()
+          -- Run per-action tab-switch logic (checks origin/destination tab lists)
+          if not FCP_STARTUP_MODE then
+            run_actions_on_tab_switch(was_tab, name)
           end
-          -- Run Venue Preview when switching to or from Venue tab (not during startup)
-          if not FCP_STARTUP_MODE and (was_venue or is_venue) then
-            start_venue_preview()
-          end
-          -- Run Pro Keys Preview when switching to or from Pro Keys mode (not during startup)
-          local is_pro_keys = (name == "Keys" and PRO_KEYS_ACTIVE)
-          local was_pro_keys = (last_tab == "Keys" and PRO_KEYS_ACTIVE)
-          if not FCP_STARTUP_MODE and (was_pro_keys or is_pro_keys) then
-            start_pro_keys_preview()
-          end
+          disable_reasynth_except_for_tab(name)
+          ensure_listen_fx_for_tab(name)
           WANT_CENTER_ON_TAB = true
           LAST_SEEN_TAB = name
           

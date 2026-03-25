@@ -3,7 +3,7 @@
   <metadata>
     <description><![CDATA[Scripts for Rock Band 3 song authoring in REAPER.
 
-**FCP Song Progress Tracker** - Multi-tab interface for tracking song authoring progress with FX chain alignment, screenset & visible note row management, creating practice sections and turning them into Regions, and integrations with other charting tools.
+**FCP Song Progress Tracker** - Multi-tab hub for tracking authoring progress, context switching, and workflow management including running user-definable actions on tab switch.
 
 **FCP Spectracular Patcher** - Patches talagan's Spectracular with helpful vocals charting functionality: viewport persistence, modified mouse wheel behavior (vertical pan, Ctrl+wheel vertical zoom, Alt+wheel horizontal zoom), MIDI note overlay with lyrics, note preview on click, and smaller minimum window size.
 
@@ -23,18 +23,28 @@ My goal is to make this a complete authoring companion toolkit to streamline cha
 
 Features:
 - Multi-tab interface for tracking Rock Band song progress
-- RBN Preview floating FX window alignment and screenset management
-- Integrations with common charting tools for quick context switching
+- RBN Preview window alignment and screenset management
+- User-assignable actions run on tab switch for streamlined workflow
 - Import separated stems to the correct tracks
 - Create regions from practice sections
 - Overdrive table showing note density with guides to help with placement
 - Jump between Regions while preserving relative position
-- Pro Keys MIDI editing support
+- NEW: timer column for tracking how much time you're spending on each section
 ]]></description>
       </metadata>
-      <version name="1.0.5" author="FinestCardboardPearls">
-        <changelog><![CDATA[- Added Preferences tab
-- Control whether 5-lane preview windows and the MIDI editor are shown when switching between instrument tabs]]></changelog>
+      <version name="2.0" author="FinestCardboardPearls">
+        <changelog><![CDATA[- Preferences Tab now has 15 user-assignable actions which run when switching to the assigned tab
+- Jump Regions is now compactly integrated into the region table instead of being a separate window
+- Timer column added for tracking how much time you're spending on each section
+- Regions marked Complete now revert to In Progress when edited
+- On tab switch the leftmost incomplete difficulty is automatically selected
+- Listen button volume control now targets ReaSynth FX, toggling Listen now enables/disables ReaSynth FX
+- Solo button mutes all other audio tracks, unsolo smart unmutes all
+- Venue Tab now has toggles for note row subgroups
+- Bottom buttons have been reorganized for consistency
+- Overdrive table now highlights the track open in the active MIDI editor, plus minor improvments
+- Added colour-coding for tooltips and condensed some descriptions
+- Switching projects is now more robust, new data is loaded correctly without conflicts]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_main.lua</source>
         <source file="fcp_tracker_config.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_config.lua</source>
         <source file="fcp_tracker_chunk_parse.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_chunk_parse.lua</source>
@@ -132,7 +142,12 @@ Features:
       </version>
     </reapack>
     <reapack name="FCP Lyrics Clipboard create and align lyric events to notes in each region.lua" type="script">
-      <version name="2.19" author="FinestCardboardPearls">
+      <metadata>
+        <description><![CDATA[Automatically aligns lyric events to notes in each region.]]></description>
+      </metadata>
+      <version name="2.20" author="FinestCardboardPearls">
+        <changelog><![CDATA[- When grabbing lyric events from existing notes it now uses the currently selected track, not the first selected
+- Added a guard so Apply can't be toggled ON (and auto-turns OFF) if a non-vocals track gets selected]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Lyrics%20Clipboard%20create%20and%20align%20lyric%20events%20to%20notes%20in%20each%20region.lua</source>
       </version>
     </reapack>
@@ -162,10 +177,10 @@ Added features:
         <description><![CDATA[Animated sprite previewer for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
 ]]></description>
       </metadata>
-      <version name="1.0.1" author="FinestCardboardPearls">
-        <changelog><![CDATA[Spritesheet png filesize optimized to be 4x smaller with no visible loss in quality
-        
-All spritesheets where the first frame wasn't part of the same camera cut have been fixed]]></changelog>
+      <version name="1.1" author="FinestCardboardPearls">
+        <changelog><![CDATA[- Fixed post-processing transitions so the new effect fades in while the old effect fades out
+- Absolute positioning so the top video stays centered horizontally regardless of window size
+- Default window dimensions adjusted to fit content]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Venue%20Preview%20Lighting%20Camera.lua</source>
         <!-- Camera spritesheets -->
         <source file="Spritesheets/Camera/AllBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/AllBehind_spritesheet.png</source>

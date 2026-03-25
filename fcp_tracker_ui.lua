@@ -43,47 +43,238 @@ local function draw_editor_row(ctx, pw, redirect_focus_after_click)
     end
   end
   
-  if PairLikeButton(ctx, "btn_editor", "Editor", pw * 1.2, midi_editor_open) then
-    if midi_editor_open then
-      -- Close the MIDI editor
-      reaper.MIDIEditor_OnCommand(me, 2)  -- File: Close window
-    else
-      -- Open MIDI editor for selected item
-      reaper.Main_OnCommand(40153, 0)  -- Item: Open in built-in MIDI editor
-    end
-    reaper.defer(redirect_focus_after_click)
-  end
-  
-  -- Visualizer button (Pro Keys tab only)
+  -- Listen button (first in editor row)
   if current_tab == "Keys" and PRO_KEYS_ACTIVE then
-    ImGui.ImGui_SameLine(ctx, 0, 4)
-    if PairLikeButton(ctx, "btn_visualizer", "Visualizer", pw * 1.5, false) then
-      start_pro_keys_preview()
-      reaper.defer(redirect_focus_after_click)
-    end
-    
-    -- Listen button (toggle FX for selected Pro Keys track, drag for volume)
     local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
     local diff_key = diff_map[ACTIVE_DIFF] or "X"
     local pro_keys_trackname = PRO_KEYS_TRACKS[diff_key]
-    local fx_enabled = get_track_fx_enabled(pro_keys_trackname)
-    local current_vol = get_track_volume(pro_keys_trackname) or 1.0
+    local fx_enabled = get_reasynth_enabled(pro_keys_trackname)
+    local current_vol = get_reasynth_volume(pro_keys_trackname) or 0
     
-    ImGui.ImGui_SameLine(ctx, 0, 4)
     local listen_clicked, _ = ListenButtonWithVolume(ctx, "btn_listen", "Listen", pw, fx_enabled, current_vol, pro_keys_trackname)
     if listen_clicked then
-      toggle_track_fx_enabled(pro_keys_trackname)
+      ensure_track_fx_chain_enabled(pro_keys_trackname)
+      toggle_reasynth_enabled(pro_keys_trackname)
       reaper.defer(redirect_focus_after_click)
     end
   elseif current_tab == "Vocals" then
+    local trackname = VOCALS_TRACKS[VOCALS_MODE]
+    local fx_enabled = get_reasynth_enabled(trackname)
+    local current_vol = get_reasynth_volume(trackname) or 0
+    
+    local listen_clicked, _ = ListenButtonWithVolume(ctx, "btn_vocals_listen", "Listen", pw, fx_enabled, current_vol, trackname)
+    if listen_clicked then
+      local ctrl  = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Ctrl())
+      local shift = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Shift())
+      local alt   = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Alt())
+      
+      if ctrl or shift or alt then
+        local all_off = true
+        for _, tname in pairs(VOCALS_TRACKS) do
+          if get_reasynth_enabled(tname) then
+            all_off = false
+            break
+          end
+        end
+        
+        if all_off then
+          local harmony_tracks = { VOCALS_TRACKS["H1"], VOCALS_TRACKS["H2"], VOCALS_TRACKS["H3"] }
+          for _, tname in ipairs(harmony_tracks) do
+            ensure_track_fx_chain_enabled(tname)
+            set_reasynth_enabled(tname, true)
+          end
+        else
+          for _, tname in pairs(VOCALS_TRACKS) do
+            set_reasynth_enabled(tname, false)
+          end
+        end
+      else
+        ensure_track_fx_chain_enabled(trackname)
+        toggle_reasynth_enabled(trackname)
+      end
+      reaper.defer(redirect_focus_after_click)
+    end
+  else
+    -- 5-lane Listen button (Drums, Bass, Guitar, Keys non-Pro)
+    local listen_track_map = {
+      Drums  = TRACKS.DRUMS,
+      Bass   = TRACKS.BASS,
+      Guitar = TRACKS.GUITAR,
+    }
+    local listen_trackname = listen_track_map[current_tab]
+    if current_tab == "Keys" and not PRO_KEYS_ACTIVE then
+      local pk_tr = find_track_by_name(PRO_KEYS_TRACKS["X"])
+      if pk_tr and track_has_midi(pk_tr) then
+        listen_trackname = PRO_KEYS_TRACKS["X"]
+      else
+        listen_trackname = TRACKS.KEYS
+      end
+    end
+    if listen_trackname then
+      local fx_enabled = get_reasynth_enabled(listen_trackname)
+      local current_vol = get_reasynth_volume(listen_trackname) or 0
+      local listen_clicked, _ = ListenButtonWithVolume(ctx, "btn_inst_listen", "Listen", pw, fx_enabled, current_vol, listen_trackname)
+      if listen_clicked then
+        ensure_track_fx_chain_enabled(listen_trackname)
+        toggle_reasynth_enabled(listen_trackname)
+        reaper.defer(redirect_focus_after_click)
+      end
+    end
+  end
+
+  -- Solo button (after Listen, before Editor)
+  local solo_parent_map = {
+    Drums = "PART DRUMS",
+    Bass = "PART BASS",
+    Guitar = "PART GUITAR",
+    Keys = "PART KEYS",
+    Vocals = "PART VOCALS",
+  }
+  local solo_parent = solo_parent_map[current_tab]
+  if solo_parent then
     ImGui.ImGui_SameLine(ctx, 0, 4)
-    if PairLikeButton(ctx, "btn_visualizer", "Visualizer", pw * 1.5, false) then
-      start_encore_vox_preview_only()
+    if PairLikeButton(ctx, "btn_solo", "Solo", pw, SOLO_ACTIVE_PARENT == solo_parent) then
+      if SOLO_ACTIVE_PARENT == solo_parent then
+        unsolo_tab_audio()
+        SOLO_ACTIVE_PARENT = nil
+      else
+        solo_tab_audio(solo_parent)
+        SOLO_ACTIVE_PARENT = solo_parent
+      end
+      reaper.defer(redirect_focus_after_click)
+    end
+  end
+
+  -- Overdrive tab: Editor + brightness slider + Notes button
+  if current_tab == "Overdrive" then
+    OV_LAST_EDITOR_TRACK = OV_LAST_EDITOR_TRACK or "PART DRUMS"
+    if PairLikeButton(ctx, "btn_editor", "Editor", pw * 1, midi_editor_open) then
+      if midi_editor_open then
+        reaper.MIDIEditor_OnCommand(me, 2)  -- File: Close window
+      else
+        local tr = find_track_by_name(OV_LAST_EDITOR_TRACK)
+        if tr then
+          select_first_midi_item_on_track(tr)
+        end
+      end
+      reaper.defer(redirect_focus_after_click)
+    end
+
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    ImGui.ImGui_SetNextItemWidth(ctx, 80)
+    local slider_flags = ImGui.ImGui_SliderFlags_NoInput()
+    local changed, new_val = ImGui.ImGui_SliderInt(ctx, "##brightness", OV_MAX_NOTES_BRIGHTNESS or 12, 25, 1, "%d", slider_flags)
+    if changed then
+      OV_MAX_NOTES_BRIGHTNESS = new_val
+    end
+    if ImGui.ImGui_IsItemHovered(ctx) then
+      ImGui.ImGui_SetTooltip(ctx, "Max notes for full brightness")
+    end
+
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_show_notes", "Notes", pw * 1.2, OV_SHOW_NOTES) then
+      OV_SHOW_NOTES = not OV_SHOW_NOTES
+    end
+  else
+    -- Editor toggle — SameLine only if a preceding button was drawn
+    if solo_parent or current_tab ~= "Venue" then
+      ImGui.ImGui_SameLine(ctx, 0, 4)
+    end
+    if PairLikeButton(ctx, "btn_editor", "Editor", pw * 1, midi_editor_open) then
+      if midi_editor_open then
+        -- Close the MIDI editor
+        reaper.MIDIEditor_OnCommand(me, 2)  -- File: Close window
+      else
+        -- Open MIDI editor for selected item
+        reaper.Main_OnCommand(40153, 0)  -- Item: Open in built-in MIDI editor
+      end
+      reaper.defer(redirect_focus_after_click)
+    end
+  end
+  
+  -- Sing/Spot toggle buttons (Venue editor row)
+  if current_tab == "Venue" then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_sing", "Singalong", pw * 1.5, SING_ACTIVE) then
+      SING_ACTIVE = not SING_ACTIVE
+      if SING_ACTIVE or SPOT_ACTIVE then
+        apply_venue_note_order_and_select(
+          (SING_ACTIVE and SPOT_ACTIVE) and SING_SPOT_NOTE_ORDER
+          or SING_ACTIVE and SING_NOTE_ORDER
+          or SPOT_NOTE_ORDER)
+      else
+        select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+        local me2 = reaper.MIDIEditor_GetActive()
+        if me2 then
+          reaper.MIDIEditor_OnCommand(me2, 40452)
+          reaper.MIDIEditor_OnCommand(me2, 40454)
+        end
+      end
+      reaper.defer(redirect_focus_after_click)
+    end
+
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_spot", "Spotlight", pw * 1.5, SPOT_ACTIVE) then
+      SPOT_ACTIVE = not SPOT_ACTIVE
+      if SING_ACTIVE or SPOT_ACTIVE then
+        apply_venue_note_order_and_select(
+          (SING_ACTIVE and SPOT_ACTIVE) and SING_SPOT_NOTE_ORDER
+          or SING_ACTIVE and SING_NOTE_ORDER
+          or SPOT_NOTE_ORDER)
+      else
+        select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
+        local me2 = reaper.MIDIEditor_GetActive()
+        if me2 then
+          reaper.MIDIEditor_OnCommand(me2, 40452)
+          reaper.MIDIEditor_OnCommand(me2, 40454)
+        end
+      end
+      reaper.defer(redirect_focus_after_click)
+    end
+  end
+
+  -- Spectral button (Vocals editor row only)
+  if current_tab == "Vocals" then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_spectracular", "Spectral", pw * 1.25, false) then
+      start_spectracular()
       reaper.defer(redirect_focus_after_click)
     end
     ImGui.ImGui_SameLine(ctx, 0, 4)
-    if PairLikeButton(ctx, "btn_spectracular", "Spectracular", pw * 1.75, false) then
-      start_spectracular()
+    if PairLikeButton(ctx, "btn_lyrics_clip", "LCB", pw * 0.85, false) then
+      start_lyrics_clipboard()
+      reaper.defer(redirect_focus_after_click)
+    end
+  end
+
+  -- Pro Keys toggle button (Keys tab editor row)
+  if current_tab == "Keys" then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_pro_keys", "Pro", pw, PRO_KEYS_ACTIVE) then
+      PRO_KEYS_ACTIVE = not PRO_KEYS_ACTIVE
+      force_tab_selection("Keys", 3)
+      if PRO_KEYS_ACTIVE then
+        if CMD_SCREENSET_LOAD_PRO_KEYS and CMD_SCREENSET_LOAD_PRO_KEYS > 0 then
+          reaper.Main_OnCommand(CMD_SCREENSET_LOAD_PRO_KEYS, 0)
+        end
+        local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
+        local diff_key = diff_map[ACTIVE_DIFF] or "X"
+        local trackname = PRO_KEYS_TRACKS[diff_key]
+        select_and_scroll_track_by_name(trackname, 40818, 40726)
+        compute_pro_keys()
+      else
+        if CMD_SCREENSET_LOAD_OTHERS and CMD_SCREENSET_LOAD_OTHERS > 0 then
+          reaper.Main_OnCommand(CMD_SCREENSET_LOAD_OTHERS, 0)
+        end
+        select_and_scroll_track_by_name(TAB_TRACK["Keys"])
+        local me = reaper.MIDIEditor_GetActive()
+        if me then
+          local mode = reaper.MIDIEditor_GetMode(me)
+          if mode == 0 then
+            reaper.MIDIEditor_OnCommand(me, 2)
+          end
+        end
+      end
       reaper.defer(redirect_focus_after_click)
     end
   end
@@ -95,10 +286,6 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
   local cur_y = ImGui.ImGui_GetCursorPosY(ctx)
   ImGui.ImGui_SetCursorPosY(ctx, cur_y + 2)
   
-  if PairLikeButton(ctx, "btn_align", "Align", pw, false) then
-    reaper.SetExtState(EXT_NS, EXT_LINEUP, "SAVE_RUN", true)
-  end
-
   -- Screenset button
   do
     local label, cmd
@@ -119,11 +306,104 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
       cmd   = CMD_SCREENSET_SAVE_OTHERS
     end
 
-    ImGui.ImGui_SameLine(ctx, 0, 4)
     if PairLikeButton(ctx, "btn_screenset", label, pw*1.67, false) then
       if cmd and cmd > 0 then
         reaper.Main_OnCommand(cmd, 0)
       end
+    end
+  end
+
+  ImGui.ImGui_SameLine(ctx, 0, 4)
+  if PairLikeButton(ctx, "btn_align", "Align", pw, false) then
+    reaper.SetExtState(EXT_NS, EXT_LINEUP, "SAVE_RUN", true)
+  end
+
+  -- 5L FX toggle (Pro Keys, Vocals, Venue — between Align and Highway)
+  if (current_tab == "Keys" and PRO_KEYS_ACTIVE) or current_tab == "Vocals" or current_tab == "Venue" then
+    do
+      local any_open = false
+      for _, key in ipairs(ORDER) do
+        local trackname = TRACKS[key]
+        local tr = find_track_by_name(trackname)
+        if tr then
+          local fx = get_instrument_fx_index(tr)
+          if fx and reaper.TrackFX_GetFloatingWindow(tr, fx) then
+            any_open = true
+            break
+          end
+        end
+      end
+
+      ImGui.ImGui_SameLine(ctx, 0, 4)
+      if PairLikeButton(ctx, "btn_fx_windows_row1", "5L", pw, any_open) then
+        if any_open then
+          for _, key in ipairs(ORDER) do
+            local trackname = TRACKS[key]
+            local tr = find_track_by_name(trackname)
+            if tr then
+              local fx = get_instrument_fx_index(tr)
+              if fx then
+                local hwnd = reaper.TrackFX_GetFloatingWindow(tr, fx)
+                if hwnd then
+                  reaper.TrackFX_Show(tr, fx, 2)
+                end
+              end
+            end
+          end
+        else
+          local x, y, w, h = get_master_geom()
+          if x and y and w and h then
+            local function pos_k(k) return x + k*(w + GAP_PX), y end
+            local positions = {
+              DRUMS = {pos_k(0)},
+              BASS = {pos_k(1)},
+              GUITAR = {pos_k(2)},
+              KEYS = {pos_k(3)},
+            }
+            for _, key in ipairs(ORDER) do
+              local trackname = TRACKS[key]
+              local tr = find_track_by_name(trackname)
+              if tr then
+                local px, py = positions[key][1], positions[key][2]
+                hard_apply_for_track(key, tr, px, py, w, h, false)
+              end
+            end
+          else
+            for _, key in ipairs(ORDER) do
+              local trackname = TRACKS[key]
+              local tr = find_track_by_name(trackname)
+              if tr then
+                local fx = get_instrument_fx_index(tr)
+                if fx then
+                  reaper.TrackFX_Show(tr, fx, 3)
+                end
+              end
+            end
+          end
+        end
+        reaper.defer(redirect_focus_after_click)
+      end
+    end
+  end
+
+  -- Highway visualizer button (Pro Keys, Vocals, Venue)
+  if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_visualizer", "Highway", pw * 1.5, false) then
+      start_pro_keys_preview()
+      reaper.defer(redirect_focus_after_click)
+    end
+  elseif current_tab == "Vocals" then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_visualizer", "Highway", pw * 1.5, false) then
+      start_encore_vox_preview_only()
+      reaper.defer(redirect_focus_after_click)
+    end
+  elseif current_tab == "Venue" then
+    ImGui.ImGui_SameLine(ctx, 0, 4)
+    if PairLikeButton(ctx, "btn_visualizer", "Ven Preview", pw * 1.8, false) then
+      start_venue_preview()
+      reaper.defer(redirect_focus_after_click)
     end
   end
 
@@ -143,8 +423,13 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
       end
     end
     
+    -- Skip FX button on Pro Keys, Vocals, Venue (5L is rendered above instead)
+    if (current_tab == "Keys" and PRO_KEYS_ACTIVE) or current_tab == "Vocals" or current_tab == "Venue" then
+      -- 5L FX toggle is rendered above, skip here
+    else
+    local fx_hw_label = get_show_just_fx(current_tab) and "Highway" or "Highways"
     ImGui.ImGui_SameLine(ctx, 0, 4)
-    if PairLikeButton(ctx, "btn_fx_windows", "FX", pw, any_open) then
+    if PairLikeButton(ctx, "btn_fx_windows", fx_hw_label, pw * 1.5, any_open) then
       if any_open then
         -- Close all FX windows
         for _, key in ipairs(ORDER) do
@@ -196,124 +481,11 @@ local function draw_footer(ctx, pw, redirect_focus_after_click)
       end
       reaper.defer(redirect_focus_after_click)
     end
+    end -- end if not Pro Keys
   end
   
-  -- Brightness slider (Overdrive tab only)
-  if current_tab == "Overdrive" then
-    -- Track the initial max value (set once, never changes)
-    OV_MAX_NOTES_INITIAL = OV_MAX_NOTES_INITIAL or (OV_MAX_NOTES_BRIGHTNESS or 40)
-    
-    ImGui.ImGui_SameLine(ctx, 0, 4)
-    ImGui.ImGui_SetNextItemWidth(ctx, 80)
-    local slider_flags = ImGui.ImGui_SliderFlags_NoInput()
-    local changed, new_val = ImGui.ImGui_SliderInt(ctx, "##brightness", OV_MAX_NOTES_BRIGHTNESS or 40, 1, OV_MAX_NOTES_INITIAL, "%d", slider_flags)
-    if changed then
-      OV_MAX_NOTES_BRIGHTNESS = new_val
-    end
-    if ImGui.ImGui_IsItemHovered(ctx) then
-      ImGui.ImGui_SetTooltip(ctx, "Max notes for full brightness")
-    end
-    
-    -- Notes visibility toggle button
-    ImGui.ImGui_SameLine(ctx, 0, 4)
-    if PairLikeButton(ctx, "btn_show_notes", "Notes", pw * 1.2, OV_SHOW_NOTES) then
-      OV_SHOW_NOTES = not OV_SHOW_NOTES
-    end
-  end
-  
-  -- Pro Keys toggle button (Keys tab only)
-  if current_tab == "Keys" then
-    ImGui.ImGui_SameLine(ctx, 0, 4)
-    if PairLikeButton(ctx, "btn_pro_keys", "Pro", pw, PRO_KEYS_ACTIVE) then
-      PRO_KEYS_ACTIVE = not PRO_KEYS_ACTIVE
-      -- Force the Keys tab to be re-selected after the display name changes
-      force_tab_selection("Keys", 3)
-      if PRO_KEYS_ACTIVE then
-        -- Load Pro Keys screenset
-        if CMD_SCREENSET_LOAD_PRO_KEYS and CMD_SCREENSET_LOAD_PRO_KEYS > 0 then
-          reaper.Main_OnCommand(CMD_SCREENSET_LOAD_PRO_KEYS, 0)
-        end
-        -- Select and open the appropriate Pro Keys track in MIDI editor
-        local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
-        local diff_key = diff_map[ACTIVE_DIFF] or "X"
-        local trackname = PRO_KEYS_TRACKS[diff_key]
-        select_and_scroll_track_by_name(trackname, 40818, 40726)
-        -- Compute Pro Keys progress for this difficulty
-        compute_pro_keys()
-      else
-        -- Load instrument screenset
-        if CMD_SCREENSET_LOAD_OTHERS and CMD_SCREENSET_LOAD_OTHERS > 0 then
-          reaper.Main_OnCommand(CMD_SCREENSET_LOAD_OTHERS, 0)
-        end
-        -- Switch back to PART KEYS
-        select_and_scroll_track_by_name(TAB_TRACK["Keys"])
-        -- Close MIDI editor only if it's currently open (not inline)
-        local me = reaper.MIDIEditor_GetActive()
-        if me then
-          local mode = reaper.MIDIEditor_GetMode(me)
-          if mode == 0 then  -- 0 = piano roll (not inline)
-            reaper.MIDIEditor_OnCommand(me, 2)  -- Close window
-          end
-        end
-      end
-      reaper.defer(redirect_focus_after_click)
-    end
-  end
 
-  -- Listen button (Vocals tab only) - toggle FX for selected vocals track, drag for volume
-  if current_tab == "Vocals" then
-    local trackname = VOCALS_TRACKS[VOCALS_MODE]
-    local fx_enabled = get_track_fx_enabled(trackname)
-    local current_vol = get_track_volume(trackname) or 1.0
-    
-    ImGui.ImGui_SameLine(ctx, 0, 4)
-    local listen_clicked, _ = ListenButtonWithVolume(ctx, "btn_vocals_listen", "Listen", pw, fx_enabled, current_vol, trackname)
-    if listen_clicked then
-      local ctrl  = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Ctrl())
-      local shift = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Shift())
-      local alt   = ImGui.ImGui_IsKeyDown(ctx, ImGui.ImGui_Mod_Alt())
-      
-      if ctrl or shift or alt then
-        local all_off = true
-        for _, tname in pairs(VOCALS_TRACKS) do
-          if get_track_fx_enabled(tname) then
-            all_off = false
-            break
-          end
-        end
-        
-        if all_off then
-          local harmony_tracks = { VOCALS_TRACKS["H1"], VOCALS_TRACKS["H2"], VOCALS_TRACKS["H3"] }
-          for _, tname in ipairs(harmony_tracks) do
-            local n = reaper.CountTracks(0)
-            for i = 0, n - 1 do
-              local tr = reaper.GetTrack(0, i)
-              local ok, tn = reaper.GetTrackName(tr)
-              if ok and tn == tname then
-                reaper.SetMediaTrackInfo_Value(tr, "I_FXEN", 1)
-                break
-              end
-            end
-          end
-        else
-          for _, tname in pairs(VOCALS_TRACKS) do
-            local n = reaper.CountTracks(0)
-            for i = 0, n - 1 do
-              local tr = reaper.GetTrack(0, i)
-              local ok, tn = reaper.GetTrackName(tr)
-              if ok and tn == tname then
-                reaper.SetMediaTrackInfo_Value(tr, "I_FXEN", 0)
-                break
-              end
-            end
-          end
-        end
-      else
-        toggle_track_fx_enabled(trackname)
-      end
-      reaper.defer(redirect_focus_after_click)
-    end
-  end
+
 end
 
 -- Public API ------------------------------------------------------------
@@ -367,8 +539,6 @@ function Progress_UI_Draw()
           if tab and tab ~= current_tab then
             force_tab_selection(tab, 2)  -- Force ImGui to select this tab
             handle_tab_height_switch(ctx, tab)
-            local was_vocals = (current_tab == "Vocals")
-            local is_vocals  = (tab == "Vocals")
             if tab == "Vocals" then
               select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE], 40818, 40726)
             elseif tab == "Venue" then
@@ -377,9 +547,9 @@ function Progress_UI_Draw()
               elseif name == "LIGHTING" then VENUE_MODE = "Lighting" end
             end
             -- Don't reselect track for instrument tabs - user already selected the track they want
-            if was_vocals or is_vocals then
-              start_encore_vox_preview()
-            end
+            run_actions_on_tab_switch(current_tab, tab)
+            disable_reasynth_except_for_tab(tab)
+            ensure_listen_fx_for_tab(tab)
             current_tab = tab
             WANT_CENTER_ON_TAB = true
             LAST_SEEN_TAB = tab

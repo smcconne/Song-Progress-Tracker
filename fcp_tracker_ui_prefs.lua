@@ -8,7 +8,125 @@ local ImGui  = reaper
 --------------------------------------------------------------------------------
 -- Prefs test progress: percentage of passed action tests (0–100)
 --------------------------------------------------------------------------------
-local PREFS_ACTION_KEYS = {"encore_vox", "lyrics_clip", "spectracular", "venue_preview", "pro_keys_preview"}
+-- Shared list of tab names (used by multiple sections below)
+local FLOAT_FX_TABS = {"Setup","Drums","Bass","Guitar","Keys","Pro Keys","Vocals","Venue","Overdrive"}
+
+local DEFAULT_ACTION_LABEL = "Find an Action to Run on Tab Switch"
+
+--------------------------------------------------------------------------------
+-- Unified action definitions: key, ExtState command key, default label, default tabs
+--------------------------------------------------------------------------------
+local ACTION_DEFS = {
+  { key = "encore_vox",       ext_cmd = "CMD_ENCORE_VOX",       default_label = "Encore Vox Preview:",  default_tabs = { Vocals = true } },
+  { key = "lyrics_clip",      ext_cmd = "CMD_LYRICS_CLIP",      default_label = "Lyrics Clipboard:",    default_tabs = { Vocals = true } },
+  { key = "spectracular",     ext_cmd = "CMD_SPECTRACULAR",     default_label = "Spectracular Stereo:", default_tabs = { Vocals = true } },
+  { key = "venue_preview",    ext_cmd = "CMD_VENUE_PREVIEW",    default_label = "Venue Preview:",        default_tabs = { Venue = true } },
+  { key = "pro_keys_preview", ext_cmd = "CMD_PRO_KEYS_PREVIEW", default_label = "Pro Keys Preview:",     default_tabs = { ["Pro Keys"] = true } },
+  { key = "action_6",  ext_cmd = "CMD_ACTION_6",  default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_7",  ext_cmd = "CMD_ACTION_7",  default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_8",  ext_cmd = "CMD_ACTION_8",  default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_9",  ext_cmd = "CMD_ACTION_9",  default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_10", ext_cmd = "CMD_ACTION_10", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_11", ext_cmd = "CMD_ACTION_11", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_12", ext_cmd = "CMD_ACTION_12", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_13", ext_cmd = "CMD_ACTION_13", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_14", ext_cmd = "CMD_ACTION_14", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_15", ext_cmd = "CMD_ACTION_15", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_16", ext_cmd = "CMD_ACTION_16", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_17", ext_cmd = "CMD_ACTION_17", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_18", ext_cmd = "CMD_ACTION_18", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_19", ext_cmd = "CMD_ACTION_19", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+  { key = "action_20", ext_cmd = "CMD_ACTION_20", default_label = DEFAULT_ACTION_LABEL, default_tabs = {} },
+}
+
+-- Derive action keys list and tab defaults from ACTION_DEFS
+local PREFS_ACTION_KEYS = {}
+local ACTION_TAB_DEFAULTS = {}
+for _, def in ipairs(ACTION_DEFS) do
+  PREFS_ACTION_KEYS[#PREFS_ACTION_KEYS + 1] = def.key
+  ACTION_TAB_DEFAULTS[def.key] = def.default_tabs
+end
+
+function get_action_tabs(action_key)
+  local val = reaper.GetExtState(EXT_NS, EXT_ACTION_TABS_PREFIX .. action_key)
+  if val and val ~= "" then
+    local tabs = {}
+    for name in val:gmatch("[^,]+") do
+      tabs[name] = true
+    end
+    return tabs
+  end
+  -- Return a copy of defaults
+  local defaults = ACTION_TAB_DEFAULTS[action_key] or {}
+  local copy = {}
+  for k, v in pairs(defaults) do copy[k] = v end
+  return copy
+end
+
+function set_action_tabs(action_key, tabs)
+  local parts = {}
+  for _, name in ipairs(FLOAT_FX_TABS) do
+    if tabs[name] then parts[#parts+1] = name end
+  end
+  reaper.SetExtState(EXT_NS, EXT_ACTION_TABS_PREFIX .. action_key, table.concat(parts, ","), true)
+end
+
+function get_action_leaving_tab_set(action_key)
+  local val = reaper.GetExtState(EXT_NS, EXT_ACTION_LEAVING_TAB_SET_PREFIX .. action_key)
+  if val == "0" then return false end
+  return true
+end
+
+function set_action_leaving_tab_set(action_key, on)
+  reaper.SetExtState(EXT_NS, EXT_ACTION_LEAVING_TAB_SET_PREFIX .. action_key, on and "1" or "0", true)
+end
+
+--- Run actions on tab switch using origin/destination comparison.
+-- For each action, if exactly one of origin or destination is in the tab list, run it.
+-- If both or neither are present, do nothing.
+function run_actions_on_tab_switch(origin_tab, dest_tab)
+  -- Resolve Keys → Pro Keys
+  local origin = (origin_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or origin_tab
+  local dest   = (dest_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or dest_tab
+  local known = {}
+  for _, name in ipairs(FLOAT_FX_TABS) do known[name] = true end
+
+  for _, def in ipairs(ACTION_DEFS) do
+    local tabs = get_action_tabs(def.key)
+    -- Filter to known tabs only
+    local origin_in = known[origin] and tabs[origin] or false
+    local dest_in   = known[dest]   and tabs[dest]   or false
+    local leaving = get_action_leaving_tab_set(def.key)
+    local should_run
+    if leaving then
+      should_run = origin_in ~= dest_in
+    else
+      should_run = dest_in and not origin_in
+    end
+    if should_run then
+      -- Exactly one of origin/destination is in the list: run the action
+      local lookup_str = reaper.GetExtState(EXT_NS, def.ext_cmd)
+      if lookup_str and lookup_str ~= "" then
+        local cmd_id = reaper.NamedCommandLookup(lookup_str)
+        if cmd_id ~= 0 then
+          -- Spectracular needs MIDI item selected on PART VOCALS first
+          if def.key == "spectracular" then
+            local n = reaper.CountTracks(0)
+            for i = 0, n - 1 do
+              local tr = reaper.GetTrack(0, i)
+              local ok, tname = reaper.GetTrackName(tr)
+              if ok and tname == "PART VOCALS" then
+                select_first_midi_item_on_track_no_editor(tr)
+                break
+              end
+            end
+          end
+          reaper.Main_OnCommand(cmd_id, 0)
+        end
+      end
+    end
+  end
+end
 
 local function load_test_state(key)
   local val = reaper.GetExtState(EXT_NS, "TEST_STATE_" .. key)
@@ -45,8 +163,6 @@ local FLOATING_FX_DEFAULTS = {
   ["Pro Keys"] = false,
   Vocals = false, Venue = false, Overdrive = true,
 }
-
-local FLOAT_FX_TABS = {"Setup","Drums","Bass","Guitar","Keys","Pro Keys","Vocals","Venue","Overdrive"}
 
 -- Reverse lookup: fx key -> 0-based dropdown index
 local FLOAT_FX_TAB_IDX = {}
@@ -210,17 +326,54 @@ function open_just_instrument_fx(tab)
 end
 
 --------------------------------------------------------------------------------
+-- Combo+Checkbox dropdown for per-action tab list
+--------------------------------------------------------------------------------
+-- Cache for action tab lists (loaded once, updated on checkbox change)
+local action_tab_cache = {}
+
+local function get_cached_action_tabs(action_key)
+  if not action_tab_cache[action_key] then
+    action_tab_cache[action_key] = get_action_tabs(action_key)
+  end
+  return action_tab_cache[action_key]
+end
+
+local function draw_action_tab_combo(ctx, action_key)
+  local tabs = get_cached_action_tabs(action_key)
+  -- Build preview string from checked tabs
+  local preview_parts = {}
+  for _, name in ipairs(FLOAT_FX_TABS) do
+    if tabs[name] then preview_parts[#preview_parts+1] = name end
+  end
+  local preview = #preview_parts > 0 and table.concat(preview_parts, ", ") or "(none)"
+  ImGui.ImGui_SetNextItemWidth(ctx, -1)
+  if ImGui.ImGui_BeginCombo(ctx, "##tabs_" .. action_key, preview) then
+    for _, name in ipairs(FLOAT_FX_TABS) do
+      local rv, val = ImGui.ImGui_Checkbox(ctx, name .. "##tab_" .. action_key, tabs[name] or false)
+      if rv then
+        tabs[name] = val or nil
+        set_action_tabs(action_key, tabs)
+      end
+    end
+    ImGui.ImGui_EndCombo(ctx)
+  end
+end
+
+--------------------------------------------------------------------------------
 -- Draw Prefs Tab Content (public function called from fcp_tracker_ui.lua)
 --------------------------------------------------------------------------------
 function draw_prefs_tab(ctx)
   local _, avail_h = ImGui.ImGui_GetContentRegionAvail(ctx)
 
   if not PREFS_SELECTED_TAB_IDX then PREFS_SELECTED_TAB_IDX = 0 end
-  ImGui.ImGui_Text(ctx, "Show by default for:")
+  ImGui.ImGui_AlignTextToFramePadding(ctx)
+  ImGui.ImGui_Text(ctx, "On tab")
   ImGui.ImGui_SameLine(ctx)
   ImGui.ImGui_SetNextItemWidth(ctx, 120)
   local changed_tab, new_idx = ImGui.ImGui_Combo(ctx, "##prefs_tab_combo", PREFS_SELECTED_TAB_IDX, table.concat(FLOAT_FX_TABS, "\0") .. "\0")
   if changed_tab then PREFS_SELECTED_TAB_IDX = new_idx end
+  ImGui.ImGui_SameLine(ctx)
+  ImGui.ImGui_Text(ctx, "show:")
   ImGui.ImGui_SameLine(ctx)
   local x, y = ImGui.ImGui_GetCursorScreenPos(ctx)
   local line_h = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
@@ -255,266 +408,216 @@ function draw_prefs_tab(ctx)
   local midi_ed_on = get_midi_editor_open(sel_tab_name)
   local chg_me, new_me = ImGui.ImGui_Checkbox(ctx, "MIDI Editor", midi_ed_on)
   if chg_me then set_midi_editor_open(sel_tab_name, new_me) end
+  ImGui.ImGui_SameLine(ctx)
+  ImGui.ImGui_Dummy(ctx, 1, 0)
+  if PREFS_CMD_ID_COL_X then
+    local win_x = ImGui.ImGui_GetWindowPos(ctx)
+    ImGui.ImGui_SameLine(ctx, PREFS_CMD_ID_COL_X - win_x)
+  else
+    ImGui.ImGui_SameLine(ctx)
+  end
+  if ImGui.ImGui_Button(ctx, "Open Action List") then
+    reaper.Main_OnCommand(40605, 0)
+  end
   ImGui.ImGui_Spacing(ctx)
+  ImGui.ImGui_Separator(ctx)
   ImGui.ImGui_Spacing(ctx)
 
   -- Initialize buffers from ExtState if not already done
   if not SETUP_CMD_BUFFERS then
-    SETUP_CMD_BUFFERS = {
-      encore_vox    = reaper.GetExtState(EXT_NS, EXT_CMD_ENCORE_VOX) or "",
-      lyrics_clip   = reaper.GetExtState(EXT_NS, EXT_CMD_LYRICS_CLIP) or "",
-      spectracular  = reaper.GetExtState(EXT_NS, EXT_CMD_SPECTRACULAR) or "",
-      venue_preview = reaper.GetExtState(EXT_NS, EXT_CMD_VENUE_PREVIEW) or "",
-      pro_keys_preview = reaper.GetExtState(EXT_NS, EXT_CMD_PRO_KEYS_PREVIEW) or "",
-    }
+    SETUP_CMD_BUFFERS = {}
+    for _, def in ipairs(ACTION_DEFS) do
+      SETUP_CMD_BUFFERS[def.key] = reaper.GetExtState(EXT_NS, def.ext_cmd) or ""
+    end
   end
 
   -- Track test button state: nil = untested (red), true = success (green), false = failed (red)
   if not PREFS_TEST_STATE then
     PREFS_TEST_STATE = {}
-    for _, key in ipairs(PREFS_ACTION_KEYS) do
-      PREFS_TEST_STATE[key] = load_test_state(key)
+    for _, def in ipairs(ACTION_DEFS) do
+      PREFS_TEST_STATE[def.key] = load_test_state(def.key)
     end
   end
 
   -- Labels that update to the action name on Test
   if not PREFS_ACTION_LABELS then
-    PREFS_ACTION_LABELS = {
-      encore_vox       = "Encore Vox Preview:",
-      lyrics_clip      = "Lyrics Clipboard:",
-      spectracular     = "Spectracular Stereo:",
-      venue_preview    = "Venue Preview:",
-      pro_keys_preview = "Pro Keys Preview:",
-    }
+    PREFS_ACTION_LABELS = {}
+    for _, def in ipairs(ACTION_DEFS) do
+      if def.default_label == DEFAULT_ACTION_LABEL then
+        local saved = reaper.GetExtState(EXT_NS, "ACTION_LABEL_" .. def.key)
+        PREFS_ACTION_LABELS[def.key] = (saved ~= "" and saved) or def.default_label
+      else
+        PREFS_ACTION_LABELS[def.key] = def.default_label
+      end
+    end
   end
 
-  local label_w = 240
-  local tab_col_w = 80
-  local cmd_col_x = label_w + tab_col_w
   local test_btn_w = 56
-  local item_spacing_x = ({ImGui.ImGui_GetStyleVar(ctx, ImGui.ImGui_StyleVar_ItemSpacing())})[1]
-  local input_reserve = test_btn_w + item_spacing_x
-  
-  -- Header row
-  local content_w = ImGui.ImGui_GetContentRegionAvail(ctx)
-  ImGui.ImGui_Text(ctx, "Action Name")
-  ImGui.ImGui_SameLine(ctx, label_w)
-  ImGui.ImGui_Text(ctx, "Run On Tab")
-  ImGui.ImGui_SameLine(ctx, cmd_col_x + 1)
-  ImGui.ImGui_Text(ctx, "Action Command ID")
-  ImGui.ImGui_SameLine(ctx, content_w - test_btn_w + 7)
-  ImGui.ImGui_Text(ctx, "Run")
-  ImGui.ImGui_Separator(ctx)
 
-  -- Encore Vox Preview
-  ImGui.ImGui_Text(ctx, PREFS_ACTION_LABELS.encore_vox)
-  ImGui.ImGui_SameLine(ctx, label_w)
-  ImGui.ImGui_Text(ctx, "Vocals")
-  ImGui.ImGui_SameLine(ctx, cmd_col_x)
-  ImGui.ImGui_SetNextItemWidth(ctx, -input_reserve)
-  local changed1, new_val1 = ImGui.ImGui_InputText(ctx, "##encore_vox", SETUP_CMD_BUFFERS.encore_vox)
-  if changed1 and new_val1 ~= SETUP_CMD_BUFFERS.encore_vox then
-    SETUP_CMD_BUFFERS.encore_vox = new_val1
-    reaper.SetExtState(EXT_NS, EXT_CMD_ENCORE_VOX, new_val1, true)
-    PREFS_TEST_STATE.encore_vox = nil
-    save_test_state("encore_vox", nil)
-  end
-  ImGui.ImGui_SameLine(ctx)
-  if PREFS_TEST_STATE.encore_vox == true then
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0x2E7D32FF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0x388E3CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x1B5E20FF)
-  else
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0xB71C1CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0xD32F2FFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x7F0000FF)
-  end
-  if ImGui.ImGui_Button(ctx, "Test##test_encore_vox", test_btn_w, 0) then
-    local cmd = SETUP_CMD_BUFFERS.encore_vox
-    local cmd_id = cmd ~= "" and reaper.NamedCommandLookup(cmd) or 0
-    if cmd_id ~= 0 then
-      reaper.Main_OnCommand(cmd_id, 0)
-      local name = reaper.kbd_getTextFromCmd(cmd_id, reaper.SectionFromUniqueID(0))
-      if name and name ~= "" then PREFS_ACTION_LABELS.encore_vox = name end
-      PREFS_TEST_STATE.encore_vox = true
-      save_test_state("encore_vox", true)
-    else
-      SETUP_CMD_BUFFERS.encore_vox = ""
-      reaper.SetExtState(EXT_NS, EXT_CMD_ENCORE_VOX, "", true)
-      PREFS_ACTION_LABELS.encore_vox = "Encore Vox Preview:"
-      PREFS_TEST_STATE.encore_vox = false
-      save_test_state("encore_vox", false)
-    end
-  end
-  ImGui.ImGui_PopStyleColor(ctx, 3)
+  -- Reserve space for version footer, then use remaining height for scrollable table
+  local line_height_for_footer = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
+  local footer_reserve = line_height_for_footer + 6  -- version line + separator + minimal spacing
+  local _, action_avail_h = ImGui.ImGui_GetContentRegionAvail(ctx)
 
-  -- Lyrics Clipboard
-  ImGui.ImGui_Text(ctx, PREFS_ACTION_LABELS.lyrics_clip)
-  ImGui.ImGui_SameLine(ctx, label_w)
-  ImGui.ImGui_Text(ctx, "Vocals")
-  ImGui.ImGui_SameLine(ctx, cmd_col_x)
-  ImGui.ImGui_SetNextItemWidth(ctx, -input_reserve)
-  local changed2, new_val2 = ImGui.ImGui_InputText(ctx, "##lyrics_clip", SETUP_CMD_BUFFERS.lyrics_clip)
-  if changed2 and new_val2 ~= SETUP_CMD_BUFFERS.lyrics_clip then
-    SETUP_CMD_BUFFERS.lyrics_clip = new_val2
-    reaper.SetExtState(EXT_NS, EXT_CMD_LYRICS_CLIP, new_val2, true)
-    PREFS_TEST_STATE.lyrics_clip = nil
-    save_test_state("lyrics_clip", nil)
-  end
-  ImGui.ImGui_SameLine(ctx)
-  if PREFS_TEST_STATE.lyrics_clip == true then
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0x2E7D32FF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0x388E3CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x1B5E20FF)
-  else
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0xB71C1CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0xD32F2FFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x7F0000FF)
-  end
-  if ImGui.ImGui_Button(ctx, "Test##test_lyrics_clip", test_btn_w, 0) then
-    local cmd = SETUP_CMD_BUFFERS.lyrics_clip
-    local cmd_id = cmd ~= "" and reaper.NamedCommandLookup(cmd) or 0
-    if cmd_id ~= 0 then
-      reaper.Main_OnCommand(cmd_id, 0)
-      local name = reaper.kbd_getTextFromCmd(cmd_id, reaper.SectionFromUniqueID(0))
-      if name and name ~= "" then PREFS_ACTION_LABELS.lyrics_clip = name end
-      PREFS_TEST_STATE.lyrics_clip = true
-      save_test_state("lyrics_clip", true)
-    else
-      SETUP_CMD_BUFFERS.lyrics_clip = ""
-      reaper.SetExtState(EXT_NS, EXT_CMD_LYRICS_CLIP, "", true)
-      PREFS_ACTION_LABELS.lyrics_clip = "Lyrics Clipboard:"
-      PREFS_TEST_STATE.lyrics_clip = false
-      save_test_state("lyrics_clip", false)
-    end
-  end
-  ImGui.ImGui_PopStyleColor(ctx, 3)
+  local row_h = PREFS_ROW_H or ImGui.ImGui_GetFrameHeightWithSpacing(ctx)
+  local tbl_flags = ImGui.ImGui_TableFlags_SizingStretchProp() + ImGui.ImGui_TableFlags_RowBg() + ImGui.ImGui_TableFlags_Borders()
 
-  -- Spectracular (runs with Vocals tab)
-  ImGui.ImGui_Text(ctx, PREFS_ACTION_LABELS.spectracular)
-  ImGui.ImGui_SameLine(ctx, label_w)
-  ImGui.ImGui_Text(ctx, "Vocals")
-  ImGui.ImGui_SameLine(ctx, cmd_col_x)
-  ImGui.ImGui_SetNextItemWidth(ctx, -input_reserve)
-  local changed3, new_val3 = ImGui.ImGui_InputText(ctx, "##spectracular", SETUP_CMD_BUFFERS.spectracular)
-  if changed3 and new_val3 ~= SETUP_CMD_BUFFERS.spectracular then
-    SETUP_CMD_BUFFERS.spectracular = new_val3
-    reaper.SetExtState(EXT_NS, EXT_CMD_SPECTRACULAR, new_val3, true)
-    PREFS_TEST_STATE.spectracular = nil
-    save_test_state("spectracular", nil)
+  --------------------------------------------------------------
+  -- HEADER TABLE (fixed, outside scrolling child)
+  --------------------------------------------------------------
+  if ImGui.ImGui_BeginTable(ctx, "PrefsActionsHdr", 5, tbl_flags) then
+    ImGui.ImGui_TableSetupColumn(ctx, "Action Name", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
+    ImGui.ImGui_TableSetupColumn(ctx, "Run When Navigating to This Set of Tabs", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
+    ImGui.ImGui_TableSetupColumn(ctx, "Leaving Tab Set", ImGui.ImGui_TableColumnFlags_WidthFixed(), 90)
+    ImGui.ImGui_TableSetupColumn(ctx, "Action Command ID", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
+    ImGui.ImGui_TableSetupColumn(ctx, "Run", ImGui.ImGui_TableColumnFlags_WidthFixed(), test_btn_w)
+    ImGui.ImGui_TableHeadersRow(ctx)
+    -- Capture column positions for alignment
+    ImGui.ImGui_TableSetColumnIndex(ctx, 1)
+    PREFS_RUN_ON_TAB_X = ImGui.ImGui_GetCursorScreenPos(ctx)
+    ImGui.ImGui_TableSetColumnIndex(ctx, 3)
+    PREFS_CMD_ID_COL_X = ImGui.ImGui_GetCursorScreenPos(ctx)
+    ImGui.ImGui_EndTable(ctx)
   end
-  ImGui.ImGui_SameLine(ctx)
-  if PREFS_TEST_STATE.spectracular == true then
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0x2E7D32FF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0x388E3CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x1B5E20FF)
-  else
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0xB71C1CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0xD32F2FFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x7F0000FF)
-  end
-  if ImGui.ImGui_Button(ctx, "Test##test_spectracular", test_btn_w, 0) then
-    local cmd = SETUP_CMD_BUFFERS.spectracular
-    local cmd_id = cmd ~= "" and reaper.NamedCommandLookup(cmd) or 0
-    if cmd_id ~= 0 then
-      reaper.Main_OnCommand(cmd_id, 0)
-      local name = reaper.kbd_getTextFromCmd(cmd_id, reaper.SectionFromUniqueID(0))
-      if name and name ~= "" then PREFS_ACTION_LABELS.spectracular = name end
-      PREFS_TEST_STATE.spectracular = true
-      save_test_state("spectracular", true)
-    else
-      SETUP_CMD_BUFFERS.spectracular = ""
-      reaper.SetExtState(EXT_NS, EXT_CMD_SPECTRACULAR, "", true)
-      PREFS_ACTION_LABELS.spectracular = "Spectracular Stereo:"
-      PREFS_TEST_STATE.spectracular = false
-      save_test_state("spectracular", false)
-    end
-  end
-  ImGui.ImGui_PopStyleColor(ctx, 3)
 
-  -- Venue Preview (runs with Venue tab)
-  ImGui.ImGui_Text(ctx, PREFS_ACTION_LABELS.venue_preview)
-  ImGui.ImGui_SameLine(ctx, label_w)
-  ImGui.ImGui_Text(ctx, "Venue")
-  ImGui.ImGui_SameLine(ctx, cmd_col_x)
-  ImGui.ImGui_SetNextItemWidth(ctx, -input_reserve)
-  local changed4, new_val4 = ImGui.ImGui_InputText(ctx, "##venue_preview", SETUP_CMD_BUFFERS.venue_preview)
-  if changed4 and new_val4 ~= SETUP_CMD_BUFFERS.venue_preview then
-    SETUP_CMD_BUFFERS.venue_preview = new_val4
-    reaper.SetExtState(EXT_NS, EXT_CMD_VENUE_PREVIEW, new_val4, true)
-    PREFS_TEST_STATE.venue_preview = nil
-    save_test_state("venue_preview", nil)
-  end
-  ImGui.ImGui_SameLine(ctx)
-  if PREFS_TEST_STATE.venue_preview == true then
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0x2E7D32FF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0x388E3CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x1B5E20FF)
-  else
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0xB71C1CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0xD32F2FFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x7F0000FF)
-  end
-  if ImGui.ImGui_Button(ctx, "Test##test_venue_preview", test_btn_w, 0) then
-    local cmd = SETUP_CMD_BUFFERS.venue_preview
-    local cmd_id = cmd ~= "" and reaper.NamedCommandLookup(cmd) or 0
-    if cmd_id ~= 0 then
-      reaper.Main_OnCommand(cmd_id, 0)
-      local name = reaper.kbd_getTextFromCmd(cmd_id, reaper.SectionFromUniqueID(0))
-      if name and name ~= "" then PREFS_ACTION_LABELS.venue_preview = name end
-      PREFS_TEST_STATE.venue_preview = true
-      save_test_state("venue_preview", true)
-    else
-      SETUP_CMD_BUFFERS.venue_preview = ""
-      reaper.SetExtState(EXT_NS, EXT_CMD_VENUE_PREVIEW, "", true)
-      PREFS_ACTION_LABELS.venue_preview = "Venue Preview:"
-      PREFS_TEST_STATE.venue_preview = false
-      save_test_state("venue_preview", false)
-    end
-  end
-  ImGui.ImGui_PopStyleColor(ctx, 3)
+  --------------------------------------------------------------
+  -- BODY metrics
+  --------------------------------------------------------------
+  local body_avail_h = select(2, ImGui.ImGui_GetContentRegionAvail(ctx))
+  local num_actions = #ACTION_DEFS
+  local rows_fit = math.max(1, math.min(num_actions, math.floor((body_avail_h - footer_reserve) / row_h)))
+  local body_h = rows_fit * row_h + 1
+  local max_n = math.max(0, num_actions - rows_fit)
+  local scroll_key = "prefs"
 
-  -- Pro Keys Preview (runs with Pro Keys tab)
-  ImGui.ImGui_Text(ctx, PREFS_ACTION_LABELS.pro_keys_preview)
-  ImGui.ImGui_SameLine(ctx, label_w)
-  ImGui.ImGui_Text(ctx, "Pro Keys")
-  ImGui.ImGui_SameLine(ctx, cmd_col_x)
-  ImGui.ImGui_SetNextItemWidth(ctx, -input_reserve)
-  local changed5, new_val5 = ImGui.ImGui_InputText(ctx, "##pro_keys_preview", SETUP_CMD_BUFFERS.pro_keys_preview)
-  if changed5 and new_val5 ~= SETUP_CMD_BUFFERS.pro_keys_preview then
-    SETUP_CMD_BUFFERS.pro_keys_preview = new_val5
-    reaper.SetExtState(EXT_NS, EXT_CMD_PRO_KEYS_PREVIEW, new_val5, true)
-    PREFS_TEST_STATE.pro_keys_preview = nil
-    save_test_state("pro_keys_preview", nil)
-  end
-  ImGui.ImGui_SameLine(ctx)
-  if PREFS_TEST_STATE.pro_keys_preview == true then
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0x2E7D32FF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0x388E3CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x1B5E20FF)
-  else
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0xB71C1CFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0xD32F2FFF)
-    ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x7F0000FF)
-  end
-  if ImGui.ImGui_Button(ctx, "Test##test_pro_keys_preview", test_btn_w, 0) then
-    local cmd = SETUP_CMD_BUFFERS.pro_keys_preview
-    local cmd_id = cmd ~= "" and reaper.NamedCommandLookup(cmd) or 0
-    if cmd_id ~= 0 then
-      reaper.Main_OnCommand(cmd_id, 0)
-      local name = reaper.kbd_getTextFromCmd(cmd_id, reaper.SectionFromUniqueID(0))
-      if name and name ~= "" then PREFS_ACTION_LABELS.pro_keys_preview = name end
-      PREFS_TEST_STATE.pro_keys_preview = true
-      save_test_state("pro_keys_preview", true)
-    else
-      SETUP_CMD_BUFFERS.pro_keys_preview = ""
-      reaper.SetExtState(EXT_NS, EXT_CMD_PRO_KEYS_PREVIEW, "", true)
-      PREFS_ACTION_LABELS.pro_keys_preview = "Pro Keys Preview:"
-      PREFS_TEST_STATE.pro_keys_preview = false
-      save_test_state("pro_keys_preview", false)
+  --------------------------------------------------------------
+  -- BODY: native scrollbar, 1-row wheel steps, snap to rows
+  --------------------------------------------------------------
+  local child_flags = ImGui.ImGui_WindowFlags_NoScrollWithMouse()
+  if ImGui.ImGui_BeginChild(ctx, "prefs_rows_scroller", 0, body_h, 0, child_flags) then
+
+    local sy = ImGui.ImGui_GetScrollY(ctx)
+
+    do
+      local n_from_sy = math.max(0, math.min(
+        max_n, math.floor((sy / row_h) + 0.5)
+      ))
+      if TAB_SCROLL_ROW[scroll_key] ~= n_from_sy then
+        TAB_SCROLL_ROW[scroll_key] = n_from_sy
+      end
     end
+
+    if TAB_SCROLL_ROW[scroll_key] ~= nil then
+      local target_sy = (TAB_SCROLL_ROW[scroll_key] or 0) * row_h
+      if math.abs(sy - target_sy) > 0.5 then
+        ImGui.ImGui_SetScrollY(ctx, target_sy)
+        sy = target_sy
+      end
+    end
+
+    if ImGui.ImGui_IsWindowHovered(ctx, 0) then
+      local wheel = ImGui.ImGui_GetMouseWheel(ctx) or 0
+      if wheel ~= 0 then
+        local step = (wheel > 0) and -1 or 1
+        local n = (TAB_SCROLL_ROW[scroll_key] or 0) + step
+        if n < 0 then n = 0
+        elseif n > max_n then n = max_n end
+        TAB_SCROLL_ROW[scroll_key] = n
+        ImGui.ImGui_SetScrollY(ctx, n * row_h)
+      end
+    end
+
+  if ImGui.ImGui_BeginTable(ctx, "PrefsActions", 5, tbl_flags) then
+  ImGui.ImGui_TableSetupColumn(ctx, "Action Name", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
+  ImGui.ImGui_TableSetupColumn(ctx, "Run When Navigating to This Set of Tabs", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
+  ImGui.ImGui_TableSetupColumn(ctx, "Leaving Tab Set", ImGui.ImGui_TableColumnFlags_WidthFixed(), 90)
+  ImGui.ImGui_TableSetupColumn(ctx, "Action Command ID", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
+  ImGui.ImGui_TableSetupColumn(ctx, "Run", ImGui.ImGui_TableColumnFlags_WidthFixed(), test_btn_w)
+
+  local first_row_y
+  for i, def in ipairs(ACTION_DEFS) do
+    local key = def.key
+    if i == num_actions then
+      ImGui.ImGui_TableNextRow(ctx, 0, row_h + 1)
+    else
+      ImGui.ImGui_TableNextRow(ctx)
+    end
+    if i == 1 then
+      first_row_y = select(2, ImGui.ImGui_GetCursorScreenPos(ctx))
+    elseif i == 2 and first_row_y then
+      local measured = select(2, ImGui.ImGui_GetCursorScreenPos(ctx)) - first_row_y
+      if measured > 0 then PREFS_ROW_H = measured end
+    end
+    ImGui.ImGui_TableNextColumn(ctx)
+    ImGui.ImGui_Text(ctx, PREFS_ACTION_LABELS[key])
+    ImGui.ImGui_TableNextColumn(ctx)
+    draw_action_tab_combo(ctx, key)
+    ImGui.ImGui_TableNextColumn(ctx)
+    local leaving_on = get_action_leaving_tab_set(key)
+    local cell_x, cell_y = ImGui.ImGui_GetCursorScreenPos(ctx)
+    local cell_w = ImGui.ImGui_GetContentRegionAvail(ctx)
+    local cell_h = ImGui.ImGui_GetFrameHeight(ctx)
+    local chg_leaving, new_leaving = ImGui.ImGui_Checkbox(ctx, "##leaving_" .. key, leaving_on)
+    if chg_leaving then set_action_leaving_tab_set(key, new_leaving) end
+    ImGui.ImGui_SameLine(ctx)
+    ImGui.ImGui_Text(ctx, leaving_on and "UI Toggles" or "No Toggle")
+    if not chg_leaving then
+      local mx, my = ImGui.ImGui_GetMousePos(ctx)
+      if ImGui.ImGui_IsMouseClicked(ctx, 0) and mx >= cell_x and mx <= cell_x + cell_w and my >= cell_y and my <= cell_y + cell_h then
+        set_action_leaving_tab_set(key, not leaving_on)
+      end
+    end
+    ImGui.ImGui_TableNextColumn(ctx)
+    ImGui.ImGui_SetNextItemWidth(ctx, -1)
+    local changed, new_val = ImGui.ImGui_InputText(ctx, "##" .. key, SETUP_CMD_BUFFERS[key])
+    if changed and new_val ~= SETUP_CMD_BUFFERS[key] then
+      SETUP_CMD_BUFFERS[key] = new_val
+      reaper.SetExtState(EXT_NS, def.ext_cmd, new_val, true)
+      PREFS_TEST_STATE[key] = nil
+      save_test_state(key, nil)
+    end
+    ImGui.ImGui_TableNextColumn(ctx)
+    if PREFS_TEST_STATE[key] == true then
+      ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0x2E7D32FF)
+      ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0x388E3CFF)
+      ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x1B5E20FF)
+    else
+      ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Button(), 0xB71C1CFF)
+      ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonHovered(), 0xD32F2FFF)
+      ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_ButtonActive(), 0x7F0000FF)
+    end
+    if ImGui.ImGui_Button(ctx, "Test##test_" .. key, -1, 0) then
+      local cmd = SETUP_CMD_BUFFERS[key]
+      local cmd_id = cmd ~= "" and reaper.NamedCommandLookup(cmd) or 0
+      if cmd_id ~= 0 then
+        reaper.Main_OnCommand(cmd_id, 0)
+        local aname = reaper.kbd_getTextFromCmd(cmd_id, reaper.SectionFromUniqueID(0))
+        if aname and aname ~= "" then
+          PREFS_ACTION_LABELS[key] = aname
+          if def.default_label == DEFAULT_ACTION_LABEL then
+            reaper.SetExtState(EXT_NS, "ACTION_LABEL_" .. key, aname, true)
+          end
+        end
+        PREFS_TEST_STATE[key] = true
+        save_test_state(key, true)
+      else
+        SETUP_CMD_BUFFERS[key] = ""
+        reaper.SetExtState(EXT_NS, def.ext_cmd, "", true)
+        PREFS_ACTION_LABELS[key] = def.default_label
+        if def.default_label == DEFAULT_ACTION_LABEL then
+          reaper.DeleteExtState(EXT_NS, "ACTION_LABEL_" .. key, true)
+        end
+        PREFS_TEST_STATE[key] = false
+        save_test_state(key, false)
+      end
+    end
+    ImGui.ImGui_PopStyleColor(ctx, 3)
   end
-  ImGui.ImGui_PopStyleColor(ctx, 3)
+
+  ImGui.ImGui_EndTable(ctx)
+  end
+  ImGui.ImGui_EndChild(ctx)
+  end
 
   -- Version info at bottom left
   local line_height = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
@@ -529,4 +632,12 @@ function draw_prefs_tab(ctx)
   ImGui.ImGui_Separator(ctx)
   local version_text = "v" .. (SCRIPT_VERSION or "?.?.?")
   ImGui.ImGui_Text(ctx, "Version: " .. version_text .. " (Updates via ReaPack)")
+  local hint_text = "Open the Action List, find an action, right-click → Copy Selected Action Command ID, and paste it above"
+  if PREFS_RUN_ON_TAB_X then
+    local win_x = ImGui.ImGui_GetWindowPos(ctx)
+    ImGui.ImGui_SameLine(ctx, PREFS_RUN_ON_TAB_X - win_x)
+  end
+  ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), 0x999999FF)
+  ImGui.ImGui_Text(ctx, hint_text)
+  ImGui.ImGui_PopStyleColor(ctx)
 end

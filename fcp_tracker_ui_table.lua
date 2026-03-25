@@ -13,6 +13,14 @@ local LAST_ACTIVE_ROW = nil
 -- Minimap bounds for scroll speed detection (from previous frame)
 local MINIMAP_BOUNDS = { y1 = 0, y2 = 0 }
 
+-- Previous-frame hover preview for the measure-offset InputInt
+local HOVER_PREVIEW_OFFSET = nil  -- nil = not hovering, number = preview offset
+local HOVER_CURRENT_REGION = false -- true when hovering the active (current) region row
+local HOVER_MODIFIER_DISTANCE = nil -- nil = not modifier-hovering, number = measure distance from cursor
+local HEADER_LABEL_HOVERED = false -- true when hovering the leftmost header cell
+local HEADER_LABEL_WAS_HOVERED = false -- previous frame's hover state for edge detection
+local HEADER_JUMP_CLICKED = false -- true after jump click, suppresses preview-scroll for rest of hover
+
 -- Pending OV deletions: { {trackname, measure_num, delete_time}, ... }
 local PENDING_OV_DELETIONS = {}
 
@@ -135,7 +143,7 @@ function draw_table(ctx, redirect_focus_after_click)
   -- HEADER (fixed, no extra child)
   --------------------------------------------------------------
   if ImGui.ImGui_BeginTable(
-      ctx, "hdr_tbl", 2,
+      ctx, "hdr_tbl", 3,
       ImGui.ImGui_TableFlags_SizingFixedFit() +
       ImGui.ImGui_TableFlags_Borders()
     ) then
@@ -160,28 +168,125 @@ function draw_table(ctx, redirect_focus_after_click)
       ctx, display_diff,
       ImGui.ImGui_TableColumnFlags_WidthFixed(), REGION_COL_W
     )
+    ImGui.ImGui_TableSetupColumn(
+      ctx, "Timer",
+      ImGui.ImGui_TableColumnFlags_WidthFixed(), TIME_COL_W
+    )
 
     ImGui.ImGui_TableNextRow(ctx, ImGui.ImGui_TableRowFlags_Headers())
 
     ImGui.ImGui_TableNextColumn(ctx)
-    ImGui.ImGui_Text(ctx, "Region")
+    do
+      local rx0 = ImGui.ImGui_GetCursorPosX(ctx)
+      local ry0 = ImGui.ImGui_GetCursorPosY(ctx)
+      local rw  = select(1, ImGui.ImGui_GetContentRegionAvail(ctx))
+      local row_height = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
+
+      -- Right-aligned measure-offset InputInt (from Jump Regions)
+      if FCP_JUMP_REGIONS then
+        local em = ImGui.ImGui_GetFontSize(ctx)
+        local input_w = math.floor(em * 3)
+        local gap = 4  -- gap between label area and InputInt
+
+        -- Draw label as an invisible button that triggers jump on click
+        local label_w = rw - input_w - gap
+        if label_w < 1 then label_w = 1 end
+        ImGui.ImGui_SetCursorPosX(ctx, rx0)
+        ImGui.ImGui_SetCursorPosY(ctx, ry0)
+        ImGui.ImGui_InvisibleButton(ctx, "##region_jump", label_w, row_height)
+        local cell_clicked = ImGui.ImGui_IsItemClicked(ctx, 0)
+        local label_hovered = ImGui.ImGui_IsItemHovered(ctx)
+        HEADER_LABEL_HOVERED = label_hovered
+
+        -- Determine header state based on what's being hovered
+        local any_hover = label_hovered or HOVER_CURRENT_REGION or (HOVER_PREVIEW_OFFSET ~= nil) or (HOVER_MODIFIER_DISTANCE ~= nil)
+        -- The value that would be shown in the textbox right now
+        local effective_val
+        if HOVER_MODIFIER_DISTANCE ~= nil then
+          effective_val = HOVER_MODIFIER_DISTANCE
+        elseif HOVER_PREVIEW_OFFSET ~= nil then
+          effective_val = HOVER_PREVIEW_OFFSET
+        else
+          effective_val = FCP_JUMP_REGIONS.MEAS_OFFSET
+        end
+        local show_current = any_hover and (effective_val == 0)
+        local show_orange  = any_hover and (effective_val ~= 0)
+
+        -- Draw label text over the invisible button
+        local text_h = ImGui.ImGui_GetTextLineHeight(ctx)
+        local label_y_offset = math.floor((row_height - text_h) / 2)
+        ImGui.ImGui_SetCursorPosX(ctx, rx0)
+        ImGui.ImGui_SetCursorPosY(ctx, ry0 + label_y_offset)
+        local header_label = "Target"
+        if show_current then
+          header_label = "Current"
+        elseif show_orange then
+          header_label = "Jump"
+          ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), COL_PREVIEW_LINE)
+        end
+        ImGui.ImGui_Text(ctx, header_label)
+        if show_orange then
+          ImGui.ImGui_PopStyleColor(ctx)
+        end
+
+        -- InputInt right-aligned, orange text when previewing
+        ImGui.ImGui_SetCursorPosX(ctx, rx0 + rw - input_w)
+        ImGui.ImGui_SetCursorPosY(ctx, ry0)
+        ImGui.ImGui_SetNextItemWidth(ctx, input_w)
+        local display_val = FCP_JUMP_REGIONS.MEAS_OFFSET
+        local is_previewing = (HOVER_PREVIEW_OFFSET ~= nil) or (HOVER_MODIFIER_DISTANCE ~= nil)
+        if HOVER_MODIFIER_DISTANCE ~= nil then
+          display_val = HOVER_MODIFIER_DISTANCE
+        elseif HOVER_PREVIEW_OFFSET ~= nil then
+          display_val = HOVER_PREVIEW_OFFSET
+        end
+        if show_orange then
+          ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), COL_PREVIEW_LINE)
+        end
+        local changed, v = ImGui.ImGui_InputInt(ctx, "##meas_off", display_val, 0, 0)
+        if show_orange then
+          ImGui.ImGui_PopStyleColor(ctx)
+        end
+        local input_active = ImGui.ImGui_IsItemActive(ctx)
+        FCP_JUMP_REGIONS.input_active = input_active
+        if changed and not is_previewing then FCP_JUMP_REGIONS.MEAS_OFFSET = v end
+        if ImGui.ImGui_IsItemDeactivatedAfterEdit(ctx) then
+          if redirect_focus_after_click then reaper.defer(redirect_focus_after_click) end
+        end
+
+        -- Trigger jump when the label area is clicked
+        if cell_clicked and not input_active then
+          FCP_JUMP_REGIONS.do_jump(true)
+          HEADER_JUMP_CLICKED = true
+        end
+      else
+        ImGui.ImGui_Text(ctx, "Region")
+      end
+    end
 
     ImGui.ImGui_TableNextColumn(ctx)
     local x0 = ImGui.ImGui_GetCursorPosX(ctx)
-    local y0 = ImGui.ImGui_GetCursorPosY(ctx)
     local w  = select(1, ImGui.ImGui_GetContentRegionAvail(ctx))
 
+    local diff_label_y = ImGui.ImGui_GetCursorPosY(ctx)
     ImGui.ImGui_Text(ctx, display_diff)
 
     local pct = diff_pct(current_tab, display_diff)
     local t   = tostring(pct) .. "%"
     local tw  = select(1, ImGui.ImGui_CalcTextSize(ctx, t))
+    local th  = select(2, ImGui.ImGui_CalcTextSize(ctx, t))
+    local pct_row_h = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
+    local pct_y_off = math.floor((pct_row_h - th) / 2)
 
     ImGui.ImGui_SetCursorPosX(ctx, x0 + w - tw)
-    ImGui.ImGui_SetCursorPosY(ctx, y0)
+    ImGui.ImGui_SetCursorPosY(ctx, diff_label_y + pct_y_off)
     ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), pct_to_u32(pct))
     ImGui.ImGui_Text(ctx, t)
     ImGui.ImGui_PopStyleColor(ctx)
+
+    -- Time header column
+    ImGui.ImGui_TableNextColumn(ctx)
+    ImGui.ImGui_Text(ctx, "Timer")
 
     ImGui.ImGui_EndTable(ctx)
   end
@@ -191,7 +296,7 @@ function draw_table(ctx, redirect_focus_after_click)
   --------------------------------------------------------------
   local avail_h  = select(2, ImGui.ImGui_GetContentRegionAvail(ctx))
   local rows_fit = math.max(1, math.min(#REGIONS, math.floor(avail_h / row_h)))
-  local body_h   = rows_fit * row_h
+  local body_h   = rows_fit * row_h + 1
   local max_n    = math.max(0, #REGIONS - rows_fit)
   local key      = current_tab
 
@@ -219,6 +324,38 @@ function draw_table(ctx, redirect_focus_after_click)
       need_center_now     = true
     end
   end
+
+  -- Header hover scroll: center on preview line row or snap back to current region
+  if HEADER_LABEL_HOVERED and not HEADER_JUMP_CLICKED and FCP_JUMP_REGIONS and FCP_JUMP_REGIONS.MEAS_OFFSET ~= 0 and row_of_cursor then
+    local st = reaper.GetPlayState()
+    local cursor_t = (st & 1) == 1 and reaper.GetPlayPosition() or reaper.GetCursorPosition()
+    local target_t = jump_time_by_measures(cursor_t, FCP_JUMP_REGIONS.MEAS_OFFSET)
+    local target_row = nil
+    for i = 1, #REGIONS do
+      local rs = REGIONS[i].pos or 0
+      local re = REGIONS[i].r_end or 0
+      if target_t >= rs and target_t < re then target_row = i; break end
+    end
+    if target_row then
+      local desired = target_row - math.floor(rows_fit / 2)
+      if desired < 0 then desired = 0 elseif desired > max_n then desired = max_n end
+      TAB_SCROLL_ROW[key] = desired
+      need_center_now = true
+    end
+  elseif HEADER_LABEL_HOVERED and HEADER_JUMP_CLICKED and row_of_cursor then
+    -- After jump click, stay centered on the (now-updated) active region
+    local desired = row_of_cursor - math.floor(rows_fit / 2)
+    if desired < 0 then desired = 0 elseif desired > max_n then desired = max_n end
+    TAB_SCROLL_ROW[key] = desired
+    need_center_now = true
+  elseif not HEADER_LABEL_HOVERED and HEADER_LABEL_WAS_HOVERED and row_of_cursor then
+    local desired = row_of_cursor - math.floor(rows_fit / 2)
+    if desired < 0 then desired = 0 elseif desired > max_n then desired = max_n end
+    TAB_SCROLL_ROW[key] = desired
+    need_center_now = true
+    HEADER_JUMP_CLICKED = false
+  end
+  HEADER_LABEL_WAS_HOVERED = HEADER_LABEL_HOVERED
 
   -- Mouse press/release edge: reset paint set
   do
@@ -285,7 +422,7 @@ function draw_table(ctx, redirect_focus_after_click)
     end
 
     if ImGui.ImGui_BeginTable(
-        ctx, "body_tbl", 2,
+        ctx, "body_tbl", 3,
         ImGui.ImGui_TableFlags_SizingFixedFit() +
         ImGui.ImGui_TableFlags_Borders()
       ) then
@@ -310,18 +447,36 @@ function draw_table(ctx, redirect_focus_after_click)
         ctx, display_diff,
         ImGui.ImGui_TableColumnFlags_WidthFixed(), REGION_COL_W
       )
+      ImGui.ImGui_TableSetupColumn(
+        ctx, "Timer",
+        ImGui.ImGui_TableColumnFlags_WidthFixed(), TIME_COL_W
+      )
 
       local hovered_region_row = nil
       local region_cell_positions = {}
+      HOVER_CURRENT_REGION = false  -- reset each frame before row loop
 
       for r = 1, #REGIONS do
-        ImGui.ImGui_TableNextRow(ctx)
+        if r == #REGIONS then
+          ImGui.ImGui_TableNextRow(ctx, 0, row_h + 1)
+        else
+          ImGui.ImGui_TableNextRow(ctx)
+        end
+
+        -- Highlight entire row (including area right of columns) for the current region
+        if row_of_cursor == r then
+          ImGui.ImGui_TableSetBgColor(
+            ctx, ImGui.ImGui_TableBgTarget_RowBg0(), REG_COL_U32[r].header
+          )
+        end
 
         -- Region cell
         ImGui.ImGui_TableNextColumn(ctx)
-        ImGui.ImGui_TableSetBgColor(
-          ctx, ImGui.ImGui_TableBgTarget_CellBg(), REG_COL_U32[r].header
-        )
+        if row_of_cursor ~= r then
+          ImGui.ImGui_TableSetBgColor(
+            ctx, ImGui.ImGui_TableBgTarget_CellBg(), REG_COL_U32[r].header
+          )
+        end
         
         local cell_x, cell_y = ImGui.ImGui_GetCursorScreenPos(ctx)
         region_cell_positions[r] = { x = cell_x, y = cell_y }
@@ -345,6 +500,18 @@ function draw_table(ctx, redirect_focus_after_click)
           local modifier_held = any_modifier_held()
           
           if modifier_held then
+            -- Compute floored measure distance from cursor to clicked region start
+            if FCP_JUMP_REGIONS and row_of_cursor then
+              local st = reaper.GetPlayState()
+              local cursor_t = (st & 1) == 1 and reaper.GetPlayPosition() or reaper.GetCursorPosition()
+              local cur_m = measure_index_at_time(cursor_t)
+              local cur_frac = frac_in_measure_at_time(cursor_t)
+              local cur_eff = (cur_frac > 0.001) and (cur_m + 1) or cur_m
+              local hov_m = measure_index_at_time(REGIONS[r].pos or 0)
+              local hov_frac = frac_in_measure_at_time(REGIONS[r].pos or 0)
+              local hov_eff = (hov_frac > 0.001) and (hov_m + 1) or hov_m
+              FCP_JUMP_REGIONS.MEAS_OFFSET = math.floor(hov_eff - cur_eff)
+            end
             reaper.SetProjExtState(
               PROJ, JUMP_EXT_SECTION, JUMP_EXT_KEY, "ABS:" .. tostring(REGIONS[r].id)
             )
@@ -361,6 +528,11 @@ function draw_table(ctx, redirect_focus_after_click)
         
         if region_hovered and row_of_cursor and row_of_cursor ~= r then
           hovered_region_row = r
+        end
+
+        -- Track hovering over the current (active) region row
+        if region_hovered and row_of_cursor and row_of_cursor == r then
+          HOVER_CURRENT_REGION = true
         end
         
         -- Draw cursor position line if this is the active region
@@ -388,11 +560,6 @@ function draw_table(ctx, redirect_focus_after_click)
 
         -- Progress cell with drag-paint
         ImGui.ImGui_TableNextColumn(ctx)
-        local cell_bg = (row_of_cursor == r) and REG_COL_U32[r].header
-                                         or  REG_COL_U32[r].cell
-        ImGui.ImGui_TableSetBgColor(
-          ctx, ImGui.ImGui_TableBgTarget_CellBg(), cell_bg
-        )
 
         local st
         if current_tab == "Keys" and PRO_KEYS_ACTIVE then
@@ -418,7 +585,7 @@ function draw_table(ctx, redirect_focus_after_click)
 
         -- Manual hit test for drag-paint: check if mouse is within this cell's bounds
         local mouse_x, mouse_y = ImGui.ImGui_GetMousePos(ctx)
-        local cell_w = ImGui.ImGui_GetContentRegionAvail(ctx) + 50  -- approximate width
+        local cell_w = REGION_COL_W
         local cell_h = row_h
         local mouse_in_cell = mouse_x >= prog_cell_x and mouse_x < prog_cell_x + cell_w
                           and mouse_y >= prog_cell_y and mouse_y < prog_cell_y + cell_h
@@ -443,11 +610,150 @@ function draw_table(ctx, redirect_focus_after_click)
         end
 
         ImGui.ImGui_PopID(ctx)
+
+        -- Time cell
+        ImGui.ImGui_TableNextColumn(ctx)
+        local time_diff = current_timer_diff()
+        local secs = get_region_time(current_tab, time_diff, r)
+        local time_str
+        if secs >= 3600 then
+          time_str = string.format("%d:%02d:%02d", math.floor(secs/3600), math.floor(secs/60)%60, secs%60)
+        elseif secs >= 60 then
+          time_str = string.format("%d:%02d", math.floor(secs/60), secs%60)
+        else
+          time_str = string.format(":%02d", secs)
+        end
+        ImGui.ImGui_PushID(ctx, "time|" .. current_tab .. "|" .. time_diff .. "|" .. r)
+        local time_clicked = ImGui.ImGui_Selectable(ctx, time_str, false)
+        if time_clicked then
+          if any_modifier_held() then
+            -- Modifier+click: reset to 0
+            REGION_TIME[current_tab] = REGION_TIME[current_tab] or {}
+            REGION_TIME[current_tab][time_diff] = REGION_TIME[current_tab][time_diff] or {}
+            REGION_TIME[current_tab][time_diff][r] = 0
+            save_region_time(current_tab, time_diff, r, 0)
+          else
+            -- Left click: subtract 10 seconds (min 0)
+            local new_secs = math.max(0, secs - 10)
+            REGION_TIME[current_tab] = REGION_TIME[current_tab] or {}
+            REGION_TIME[current_tab][time_diff] = REGION_TIME[current_tab][time_diff] or {}
+            REGION_TIME[current_tab][time_diff][r] = new_secs
+            save_region_time(current_tab, time_diff, r, new_secs)
+          end
+          REGION_TIME_LAST_TICK = nil  -- reset tick anchor so counting restarts fresh
+        end
+        -- Right-click: reset to 0
+        if ImGui.ImGui_IsItemClicked(ctx, 1) then
+          REGION_TIME[current_tab] = REGION_TIME[current_tab] or {}
+          REGION_TIME[current_tab][time_diff] = REGION_TIME[current_tab][time_diff] or {}
+          REGION_TIME[current_tab][time_diff][r] = 0
+          save_region_time(current_tab, time_diff, r, 0)
+          REGION_TIME_LAST_TICK = nil  -- reset tick anchor so counting restarts fresh
+        end
+        ImGui.ImGui_PopID(ctx)
       end
       
       -- Draw preview line showing where cursor would land after jump
       if hovered_region_row and row_of_cursor then
         draw_preview_line(ctx, row_of_cursor, hovered_region_row, region_cell_positions, row_h)
+      end
+
+      -- Update hover preview offset for next frame's header InputInt
+      if hovered_region_row and row_of_cursor then
+        local cur_reg = REGIONS[row_of_cursor]
+        local hov_reg = REGIONS[hovered_region_row]
+        if cur_reg and hov_reg and not any_modifier_held() then
+          local cur_m = measure_index_at_time(cur_reg.pos or 0)
+          local cur_frac = frac_in_measure_at_time(cur_reg.pos or 0)
+          local cur_eff = (cur_frac > 0.001) and (cur_m + 1) or cur_m
+          local hov_m = measure_index_at_time(hov_reg.pos or 0)
+          local hov_frac = frac_in_measure_at_time(hov_reg.pos or 0)
+          local hov_eff = (hov_frac > 0.001) and (hov_m + 1) or hov_m
+          HOVER_PREVIEW_OFFSET = hov_eff - cur_eff
+          HOVER_MODIFIER_DISTANCE = nil
+        elseif cur_reg and hov_reg and any_modifier_held() then
+          HOVER_PREVIEW_OFFSET = nil
+          -- Compute measure distance from cursor to hovered region start
+          local st = reaper.GetPlayState()
+          local cursor_t = (st & 1) == 1 and reaper.GetPlayPosition() or reaper.GetCursorPosition()
+          local cur_m = measure_index_at_time(cursor_t)
+          local cur_frac = frac_in_measure_at_time(cursor_t)
+          local cur_eff = (cur_frac > 0.001) and (cur_m + 1) or cur_m
+          local hov_m = measure_index_at_time(hov_reg.pos or 0)
+          local hov_frac = frac_in_measure_at_time(hov_reg.pos or 0)
+          local hov_eff = (hov_frac > 0.001) and (hov_m + 1) or hov_m
+          local dist = hov_eff - cur_eff
+          HOVER_MODIFIER_DISTANCE = dist
+        else
+          HOVER_PREVIEW_OFFSET = nil
+          HOVER_MODIFIER_DISTANCE = nil
+        end
+      else
+        -- Hovering current region (hovered_region_row is nil)
+        if HOVER_CURRENT_REGION and any_modifier_held() and row_of_cursor then
+          HOVER_PREVIEW_OFFSET = nil
+          local hov_reg = REGIONS[row_of_cursor]
+          if hov_reg then
+            local st = reaper.GetPlayState()
+            local cursor_t = (st & 1) == 1 and reaper.GetPlayPosition() or reaper.GetCursorPosition()
+            local cur_m = measure_index_at_time(cursor_t)
+            local cur_frac = frac_in_measure_at_time(cursor_t)
+            local cur_eff = (cur_frac > 0.001) and (cur_m + 1) or cur_m
+            local hov_m = measure_index_at_time(hov_reg.pos or 0)
+            local hov_frac = frac_in_measure_at_time(hov_reg.pos or 0)
+            local hov_eff = (hov_frac > 0.001) and (hov_m + 1) or hov_m
+            HOVER_MODIFIER_DISTANCE = hov_eff - cur_eff
+            -- Draw preview line at the region start when distance is non-zero
+            if HOVER_MODIFIER_DISTANCE ~= 0 and region_cell_positions[row_of_cursor] then
+              local tc = region_cell_positions[row_of_cursor]
+              local dl = ImGui.ImGui_GetWindowDrawList(ctx)
+              ImGui.ImGui_DrawList_AddLine(dl, tc.x, tc.y - 2, tc.x, tc.y + row_h - 3, COL_PREVIEW_LINE, 2.0)
+            end
+          else
+            HOVER_MODIFIER_DISTANCE = nil
+          end
+        elseif HOVER_CURRENT_REGION then
+          -- Hovering current region without modifier: preview offset is 0
+          HOVER_PREVIEW_OFFSET = 0
+          HOVER_MODIFIER_DISTANCE = nil
+        else
+          HOVER_PREVIEW_OFFSET = nil
+          HOVER_MODIFIER_DISTANCE = nil
+        end
+      end
+
+      -- Draw jump-target line based on measure offset when not hovering a region
+      if not hovered_region_row and not HOVER_CURRENT_REGION and FCP_JUMP_REGIONS and FCP_JUMP_REGIONS.MEAS_OFFSET ~= 0 then
+        local st = reaper.GetPlayState()
+        local cursor_t = (st & 1) == 1 and reaper.GetPlayPosition() or reaper.GetCursorPosition()
+        local target_t = jump_time_by_measures(cursor_t, FCP_JUMP_REGIONS.MEAS_OFFSET)
+
+        local target_row = nil
+        for i = 1, #REGIONS do
+          local rs = REGIONS[i].pos or 0
+          local re = REGIONS[i].r_end or 0
+          if target_t >= rs and target_t < re then target_row = i; break end
+        end
+
+        if target_row and region_cell_positions[target_row] then
+          local treg = REGIONS[target_row]
+          local tlen = (treg.r_end or 0) - (treg.pos or 0)
+          if tlen > 0 then
+            local pct = (target_t - treg.pos) / tlen
+            -- Snap to next region if landing at boundary
+            if pct >= 0.9999 and target_row < #REGIONS then
+              target_row = target_row + 1
+              pct = 0
+            end
+            if pct < 0 then pct = 0 elseif pct > 1 then pct = 1 end
+            local tc = region_cell_positions[target_row]
+            if tc then
+              local line_x = tc.x + (FIRST_COL_W * pct)
+              local dl = ImGui.ImGui_GetWindowDrawList(ctx)
+              ImGui.ImGui_DrawList_AddLine(dl, line_x, tc.y - 2, line_x, tc.y + row_h - 3, COL_PREVIEW_LINE, 2.0)
+            end
+          end
+        end
       end
 
       ImGui.ImGui_EndTable(ctx)
@@ -1360,10 +1666,10 @@ function draw_overdrive_table(ctx, redirect_focus_after_click)
   local border_padding = 14  -- Left and right table borders
   
   -- Helper to calculate brightness alpha from note count (exponential scaling)
-  local function note_count_to_alpha(count)
+  local function note_count_to_alpha(count, row)
     local base_alpha = 0  -- Minimum brightness (black)
-    local max_alpha = 0.75   -- Maximum brightness
-    local max_notes = OV_MAX_NOTES_BRIGHTNESS or 40
+    local max_alpha = (row == "Guitar") and 1.00 or 0.8
+    local max_notes = OV_MAX_NOTES_BRIGHTNESS or 12
     local normalized = math.min(1.0, count / max_notes)
     local scaled = math.sqrt(normalized)  -- Exponential: brightens quickly at first
     return base_alpha + (max_alpha - base_alpha) * scaled
@@ -1390,12 +1696,29 @@ function draw_overdrive_table(ctx, redirect_focus_after_click)
     row_rgb[row] = { r = r, g = g, b = b }
   end
   
+  -- Detect which track is open in the active MIDI editor
+  local active_editor_trackname = nil
+  local me_ov = reaper.MIDIEditor_GetActive()
+  if me_ov then
+    local take_ov = reaper.MIDIEditor_GetTake(me_ov)
+    if take_ov then
+      local tr_ov = reaper.GetMediaItemTake_Track(take_ov)
+      if tr_ov then
+        local ok_ov, name_ov = reaper.GetTrackName(tr_ov)
+        if ok_ov then active_editor_trackname = name_ov end
+      end
+    end
+  end
+
   -- Get track colors for each row (cache for row label only)
   local row_colors = {}
   for i, row in ipairs(OVERDRIVE_ROWS) do
     local trackname = OVERDRIVE_TRACKS[i]
+    local base_alpha = (row == "Guitar") and 0.55 or 0.45
+    local hl_alpha = (row == "Guitar") and 1.00 or 0.8
     row_colors[row] = {
-      base = get_track_color_u32(trackname, 0.45),        -- For row label
+      base = get_track_color_u32(trackname, base_alpha),      -- For row label
+      highlight = get_track_color_u32(trackname, hl_alpha),   -- Highlighted row label
     }
   end
   
@@ -1750,9 +2073,10 @@ function draw_overdrive_table(ctx, redirect_focus_after_click)
       cell_positions[row] = {}
       ImGui.ImGui_TableNextRow(ctx)
       
-      -- Row label - use track color, clickable to open MIDI editor
+      -- Row label - use track color, highlight if this track is in the active MIDI editor
       ImGui.ImGui_TableNextColumn(ctx)
-      ImGui.ImGui_TableSetBgColor(ctx, ImGui.ImGui_TableBgTarget_CellBg(), row_colors[row].base)
+      local is_active_row = active_editor_trackname == OVERDRIVE_TRACKS[ri]
+      ImGui.ImGui_TableSetBgColor(ctx, ImGui.ImGui_TableBgTarget_CellBg(), is_active_row and row_colors[row].highlight or row_colors[row].base)
       local row_x, row_y = ImGui.ImGui_GetCursorScreenPos(ctx)
       row_screen_positions[row] = { y = row_y }
       
@@ -1760,6 +2084,7 @@ function draw_overdrive_table(ctx, redirect_focus_after_click)
       ImGui.ImGui_PushID(ctx, "row_label|" .. row)
       if ImGui.ImGui_Selectable(ctx, row, false) then
         local trackname = OVERDRIVE_TRACKS[ri]
+        OV_LAST_EDITOR_TRACK = trackname
         local tr = find_track_by_name(trackname)
         if tr then
           select_first_midi_item_on_track(tr)
@@ -1805,7 +2130,7 @@ function draw_overdrive_table(ctx, redirect_focus_after_click)
         local is_ov_span_cell = ov_span ~= nil and not has_fill
         
         -- Calculate dynamic brightness based on note count (same for cursor and non-cursor)
-        local alpha = note_count_to_alpha(note_count)
+        local alpha = note_count_to_alpha(note_count, row)
         local rgb = row_rgb[row]
         local dynamic_bg = ImGui.ImGui_ColorConvertDouble4ToU32(rgb.r, rgb.g, rgb.b, alpha)
         

@@ -13,7 +13,7 @@ BUTTONS_COL_W = nil
 
 function init_header_metrics()
   local PAIR_W = get_PAIR_W()
-  BUTTONS_COL_W = 4*BTN_W + 8*BTN_GAP + 2*PAIR_W
+  BUTTONS_COL_W = 4*BTN_W + 8*BTN_GAP + 3*PAIR_W
 end
 
 function progress_and_count_row(ctx, redirect_focus_after_click)
@@ -35,52 +35,54 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
       elseif current_tab == "Venue" then
         -- Venue: Camera/Lighting buttons
         local labels = {"Camera", "Lighting"}
-        local venue_btn_w = PAIR_W * 1.5
+        local venue_btn_w = PAIR_W * 1.25
         for i, lab in ipairs(labels) do
           ImGui.ImGui_SetCursorPosX(ctx, x0 + (i-1)*(venue_btn_w+BTN_GAP))
           ImGui.ImGui_SetCursorPosY(ctx, y0)
           local track_is_empty = is_all_empty("Venue", lab)
-          if DiffSquareButton(ctx, lab, lab, VENUE_MODE==lab and not VENUE_TRACK_ACTIVE, venue_btn_w, track_is_empty) then
-            -- Disable Venue track mode when clicking Camera/Lighting
-            if VENUE_TRACK_ACTIVE then
-              VENUE_TRACK_ACTIVE = false
+          if DiffSquareButton(ctx, lab, lab, VENUE_MODE==lab, venue_btn_w, track_is_empty) then
+            -- Disable Sing/Spot mode when clicking Camera/Lighting
+            if SING_ACTIVE or SPOT_ACTIVE then
+              SING_ACTIVE = false
+              SPOT_ACTIVE = false
             end
             VENUE_MODE = lab
-            select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
-            -- Run 40452 then 40454 in MIDI editor
-            local me = reaper.MIDIEditor_GetActive()
-            if me then
-              reaper.MIDIEditor_OnCommand(me, 40452)
-              reaper.MIDIEditor_OnCommand(me, 40454)
+            if lab == "Camera" then
+              CAMERA_SUB_MODE = 1
+              CAMERA_DIRECTED = false
+              apply_camera_note_order_and_select(CAMERA_SINGLE_NOTE_ORDER)
+            else
+              LIGHTING_SUB_MODE = 1
+              apply_lighting_note_order_and_select(LIGHTING_POST_NOTE_ORDER)
             end
             WANT_CENTER_ON_TAB = true
             reaper.defer(redirect_focus_after_click)
           end
-          
+
           -- Tooltip showing percentage (styled like difficulty buttons)
           if ImGui.ImGui_IsItemHovered(ctx) then
             local pct = diff_pct("Venue", lab)
             local tooltip_w = 140
-            
+
             -- Position: below the button, left edge at window left edge
             local win_x, _ = ImGui.ImGui_GetWindowPos(ctx)
             local _, btn_max_y = ImGui.ImGui_GetItemRectMax(ctx)
-            
+
             ImGui.ImGui_SetNextWindowPos(ctx, win_x, btn_max_y + 5)
             ImGui.ImGui_SetNextWindowSize(ctx, tooltip_w, 0)
-            
+
             ImGui.ImGui_BeginTooltip(ctx)
-            
+
             -- Left-aligned header
             ImGui.ImGui_Text(ctx, lab)
-            
+
             -- Right-aligned percentage on same line, colored by percentage
             ImGui.ImGui_SameLine(ctx)
             local pct_text = track_is_empty and "Empty" or (tostring(pct) .. "%")
             local avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
             local pct_w = ImGui.ImGui_CalcTextSize(ctx, pct_text)
             ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w - pct_w)
-            
+
             if track_is_empty then
               ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), 0x808080FF)
             else
@@ -89,15 +91,18 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
             end
             ImGui.ImGui_Text(ctx, pct_text)
             ImGui.ImGui_PopStyleColor(ctx)
-            
+
             ImGui.ImGui_EndTooltip(ctx)
           end
-          
+
           -- Right-click: cycle all cells for this track
-          if ImGui.ImGui_IsItemClicked(ctx, 1) then            -- Disable Venue track mode when clicking Camera/Lighting
-            if VENUE_TRACK_ACTIVE then
-              VENUE_TRACK_ACTIVE = false
-            end            local row = STATE["Venue"] and STATE["Venue"][lab]
+          if ImGui.ImGui_IsItemClicked(ctx, 1) then
+            -- Disable Sing/Spot mode when clicking Camera/Lighting
+            if SING_ACTIVE or SPOT_ACTIVE then
+              SING_ACTIVE = false
+              SPOT_ACTIVE = false
+            end
+            local row = STATE["Venue"] and STATE["Venue"][lab]
             if row then
               -- Count cells in each state
               local has_not_started = false
@@ -105,7 +110,7 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
               local has_complete = false
               local all_not_started = true
               local all_empty = true
-              
+
               for r = 1, #REGIONS do
                 local st = row[r] or 0
                 if st == 0 then has_not_started = true
@@ -116,7 +121,7 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
                 if st ~= 3 then all_empty = false end
                 if st ~= 0 then all_not_started = false end
               end
-              
+
               -- Apply state changes based on priority and save each cell
               if all_empty then
                 -- All Empty -> change to Not Started
@@ -159,38 +164,76 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
             reaper.defer(redirect_focus_after_click)
           end
         end
-        
-        -- Venue track toggle button (similar to HOPOs/Pro Keys)
-        local venue_base_x = x0 + 2*(venue_btn_w+BTN_GAP) + BTN_GAP
-        ImGui.ImGui_SetCursorPosX(ctx, venue_base_x)
-        ImGui.ImGui_SetCursorPosY(ctx, y0)
-        if PairSquareButton(ctx, "Venue", VENUE_TRACK_ACTIVE, PAIR_W) then
-          VENUE_TRACK_ACTIVE = not VENUE_TRACK_ACTIVE
-          if VENUE_TRACK_ACTIVE then
-            -- Store current mode before switching
-            VENUE_PREV_MODE = VENUE_MODE
-            -- Select VENUE track and open in MIDI editor
-            select_and_scroll_track_by_name("VENUE", 40818, 40726)
-            -- Run 40452 then 40454 in MIDI editor
-            local me = reaper.MIDIEditor_GetActive()
-            if me then
-              reaper.MIDIEditor_OnCommand(me, 40452)  -- View: Zoom to content
-              reaper.MIDIEditor_OnCommand(me, 40454)  -- View: Zoom to selected items
-            end
-          else
-            -- Restore previous mode
-            local prev = VENUE_PREV_MODE or "Camera"
-            VENUE_MODE = prev
-            select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
-            -- Run 40452 then 40454 in MIDI editor
-            local me = reaper.MIDIEditor_GetActive()
-            if me then
-              reaper.MIDIEditor_OnCommand(me, 40452)
-              reaper.MIDIEditor_OnCommand(me, 40454)
+
+        -- Sub-mode buttons depending on Camera or Lighting
+        local sub_base_x = x0 + 2*(venue_btn_w+BTN_GAP)
+        if VENUE_MODE == "Camera" then
+          ImGui.ImGui_SetCursorPosX(ctx, sub_base_x)
+          ImGui.ImGui_SetCursorPosY(ctx, y0)
+          local sing_spot = SING_ACTIVE or SPOT_ACTIVE
+
+          -- Helper to get current camera note order
+          local function cam_note_order(sub, dir)
+            if sub == 1 then
+              return dir and CAMERA_SINGLE_DIR_NOTE_ORDER or CAMERA_SINGLE_NOTE_ORDER
+            else
+              return dir and CAMERA_MULTI_DIR_NOTE_ORDER or CAMERA_MULTI_NOTE_ORDER
             end
           end
-          reaper.defer(redirect_focus_after_click)
+
+          -- Single / Multi buttons
+          local cam_labels = {"One", "Multi"}
+          local cam_widths = {PAIR_W * 0.7, PAIR_W * 0.85}
+          local cx = sub_base_x
+          for ci, clab in ipairs(cam_labels) do
+            ImGui.ImGui_SetCursorPosX(ctx, cx)
+            ImGui.ImGui_SetCursorPosY(ctx, y0)
+            local cw = cam_widths[ci]
+            if PairSquareButton(ctx, clab, CAMERA_SUB_MODE == ci and not sing_spot, cw) then
+              if CAMERA_SUB_MODE ~= ci or sing_spot then
+                CAMERA_SUB_MODE = ci
+                SING_ACTIVE = false
+                SPOT_ACTIVE = false
+                apply_camera_note_order_and_select(cam_note_order(ci, CAMERA_DIRECTED))
+              end
+              reaper.defer(redirect_focus_after_click)
+            end
+            cx = cx + cw + BTN_GAP
+          end
+
+          -- Directed toggle
+          ImGui.ImGui_SetCursorPosX(ctx, cx)
+          ImGui.ImGui_SetCursorPosY(ctx, y0)
+          if PairSquareButton(ctx, "Directed", CAMERA_DIRECTED and not sing_spot, PAIR_W * 1.25) then
+            CAMERA_DIRECTED = not CAMERA_DIRECTED
+            SING_ACTIVE = false
+            SPOT_ACTIVE = false
+            apply_camera_note_order_and_select(cam_note_order(CAMERA_SUB_MODE, CAMERA_DIRECTED))
+            reaper.defer(redirect_focus_after_click)
+          end
+        elseif VENUE_MODE == "Lighting" then
+          local sing_spot = SING_ACTIVE or SPOT_ACTIVE
+          local light_labels = {"PostProc", "Lighting", "..."}
+          local light_orders = {LIGHTING_POST_NOTE_ORDER, LIGHTING_LIGHT_NOTE_ORDER, LIGHTING_MISC_NOTE_ORDER}
+          local light_widths = {PAIR_W * 1.25, PAIR_W * 1.2, PAIR_W * 0.33}
+          local lx = sub_base_x
+          for li, llab in ipairs(light_labels) do
+            ImGui.ImGui_SetCursorPosX(ctx, lx)
+            ImGui.ImGui_SetCursorPosY(ctx, y0)
+            local lw = light_widths[li]
+            if PairSquareButton(ctx, llab, LIGHTING_SUB_MODE == li and not sing_spot, lw) then
+              if LIGHTING_SUB_MODE ~= li or sing_spot then
+                LIGHTING_SUB_MODE = li
+                SING_ACTIVE = false
+                SPOT_ACTIVE = false
+                apply_lighting_note_order_and_select(light_orders[li])
+              end
+              reaper.defer(redirect_focus_after_click)
+            end
+            lx = lx + lw + BTN_GAP
+          end
         end
+
       elseif current_tab == "Vocals" then
         -- Vocals: H1/H2/H3/V
         local labels = {"H1","H2","H3","V"}
@@ -288,37 +331,27 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
                 if st ~= 0 then all_not_started = false end
               end
               
-              -- Apply state changes based on priority and save each cell
+              -- Apply state changes and save each cell
               if all_empty then
                 -- All Empty -> change to Not Started
                 for r = 1, #REGIONS do
                   row[r] = 0
                   save_cell_state("Vocals", lab, r, 0)
                 end
-              elseif all_not_started then
-                -- All Not Started -> change to Empty
+              elseif has_not_started or has_in_progress then
+                -- Combined: Not Started -> Empty, In Progress -> Complete
                 for r = 1, #REGIONS do
-                  row[r] = 3
-                  save_cell_state("Vocals", lab, r, 3)
-                end
-              elseif has_not_started then
-                -- Any Not Started -> change all Not Started to Empty
-                for r = 1, #REGIONS do
-                  if row[r] == 0 then
+                  local st = row[r] or 0
+                  if st == 0 then
                     row[r] = 3
                     save_cell_state("Vocals", lab, r, 3)
-                  end
-                end
-              elseif has_in_progress then
-                -- No Not Started, but has In Progress -> change all In Progress to Complete
-                for r = 1, #REGIONS do
-                  if row[r] == 1 then
+                  elseif st == 1 then
                     row[r] = 2
                     save_cell_state("Vocals", lab, r, 2)
                   end
                 end
               elseif has_complete then
-                -- No Not Started, no In Progress, but has Complete -> change all Complete to In Progress
+                -- Only Complete remaining -> toggle to In Progress
                 for r = 1, #REGIONS do
                   if row[r] == 2 then
                     row[r] = 1
@@ -378,27 +411,20 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
                   if st ~= 0 then all_not_started = false end
                 end
                 
-                -- Apply state changes based on priority and save each cell
+                -- Apply state changes and save each cell
                 if all_empty then
                   for r = 1, #REGIONS do
                     row[r] = 0
                     save_pro_keys_cell_state(diff_key, r, 0)
                   end
-                elseif all_not_started then
+                elseif has_not_started or has_in_progress then
+                  -- Combined: Not Started -> Empty, In Progress -> Complete
                   for r = 1, #REGIONS do
-                    row[r] = 3
-                    save_pro_keys_cell_state(diff_key, r, 3)
-                  end
-                elseif has_not_started then
-                  for r = 1, #REGIONS do
-                    if (row[r] or 0) == 0 then
+                    local st = row[r] or 0
+                    if st == 0 then
                       row[r] = 3
                       save_pro_keys_cell_state(diff_key, r, 3)
-                    end
-                  end
-                elseif has_in_progress then
-                  for r = 1, #REGIONS do
-                    if (row[r] or 0) == 1 then
+                    elseif st == 1 then
                       row[r] = 2
                       save_pro_keys_cell_state(diff_key, r, 2)
                     end
@@ -435,27 +461,38 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
                   if st ~= 0 then all_not_started = false end
                 end
                 
-                -- Apply state changes based on priority and save each cell
+                -- Apply state changes and save each cell
                 if all_empty then
                   for r = 1, #REGIONS do
                     row[r] = 0
                     save_cell_state(current_tab, diff_name, r, 0)
                   end
-                elseif all_not_started then
+                elseif has_not_started or has_in_progress then
+                  -- Combined: Not Started -> Empty (with 5-lane MIDI check), In Progress -> Complete
                   for r = 1, #REGIONS do
-                    row[r] = 3
-                    save_cell_state(current_tab, diff_name, r, 3)
-                  end
-                elseif has_not_started then
-                  for r = 1, #REGIONS do
-                    if (row[r] or 0) == 0 then
-                      row[r] = 3
-                      save_cell_state(current_tab, diff_name, r, 3)
-                    end
-                  end
-                elseif has_in_progress then
-                  for r = 1, #REGIONS do
-                    if (row[r] or 0) == 1 then
+                    local st = row[r] or 0
+                    if st == 0 then
+                      -- Only mark Empty if no MIDI notes exist on this track for any difficulty in this region
+                      local has_any_notes = false
+                      if PROGRESS[current_tab] then
+                        for _, d in ipairs(DIFFS) do
+                          if PROGRESS[current_tab][d] and PROGRESS[current_tab][d][r] then
+                            has_any_notes = true
+                            break
+                          end
+                        end
+                      end
+                      if not has_any_notes then
+                        -- Set Empty for all difficulties on this row
+                        for _, d in ipairs(DIFFS) do
+                          local drow = STATE[current_tab] and STATE[current_tab][d]
+                          if drow then
+                            drow[r] = 3
+                            save_cell_state(current_tab, d, r, 3)
+                          end
+                        end
+                      end
+                    elseif st == 1 then
                       row[r] = 2
                       save_cell_state(current_tab, diff_name, r, 2)
                     end

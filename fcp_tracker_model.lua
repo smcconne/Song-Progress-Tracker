@@ -11,6 +11,12 @@ REG_COL_U32     = REG_COL_U32     or {} -- per region: {header=..., cell=...}
 PROGRESS        = PROGRESS        or {Drums={}, Bass={}, Guitar={}, Keys={}, Vocals={H1={},H2={},H3={},V={}}, Venue={Camera={},Lighting={}}}
 STATE           = STATE           or {Drums={}, Bass={}, Guitar={}, Keys={}, Vocals={H1={},H2={},H3={},V={}}, Venue={Camera={},Lighting={}}}
 SAVED           = SAVED           or {}
+REGION_TIME     = REGION_TIME     or {}   -- per-tab per-region seconds spent active
+
+-- Per-region per-difficulty MIDI checksums (built alongside PROGRESS)
+PROGRESS_SIG    = PROGRESS_SIG    or {Drums={}, Bass={}, Guitar={}, Keys={}, Vocals={H1={},H2={},H3={},V={}}, Venue={Camera={},Lighting={}}}
+-- Checksums captured when a cell is marked Complete (persisted)
+COMPLETE_SIG    = COMPLETE_SIG    or {}
 
 -- Overdrive data: per-instrument, per-measure boolean
 OVERDRIVE_DATA     = OVERDRIVE_DATA     or { Drums={}, Bass={}, Guitar={}, Keys={} }
@@ -22,6 +28,10 @@ OVERDRIVE_MEASURES = OVERDRIVE_MEASURES or { first=1, last=1 }
 
 TAB_SIG         = TAB_SIG         or {}
 TAB_SCROLL_ROW  = TAB_SCROLL_ROW  or {}
+REGION_TIME_LAST_TICK = REGION_TIME_LAST_TICK or nil   -- last time_precise for 1-sec timer
+REGION_TIME_LAST_REGION = REGION_TIME_LAST_REGION or nil  -- last active region index
+REGION_TIME_LAST_TAB = REGION_TIME_LAST_TAB or nil  -- last active tab
+REGION_TIME_LAST_DIFF = REGION_TIME_LAST_DIFF or nil  -- last active difficulty/mode
 last_proj_cc    = last_proj_cc    or reaper.GetProjectStateChangeCount(0)
 current_tab     = current_tab     or TABS[1]
 last_tab        = last_tab        or current_tab
@@ -48,13 +58,18 @@ last_pro_keys_active  = last_pro_keys_active  or false
 PROGRESS_PRO_KEYS     = PROGRESS_PRO_KEYS     or {X={}, H={}, M={}, E={}}
 STATE_PRO_KEYS        = STATE_PRO_KEYS        or {X={}, H={}, M={}, E={}}
 SAVED_PRO_KEYS        = SAVED_PRO_KEYS        or {}
+PROGRESS_SIG_PRO_KEYS = PROGRESS_SIG_PRO_KEYS or {X={}, H={}, M={}, E={}}
+COMPLETE_SIG_PRO_KEYS = COMPLETE_SIG_PRO_KEYS or {}
 
 -- Venue sub-mode
 VENUE_MODE        = VENUE_MODE        or "Camera"     -- "Camera"|"Lighting"
 DIFFS_VENUE       = DIFFS_VENUE       or {"Camera","Lighting"}
 last_venue_mode   = last_venue_mode   or VENUE_MODE
-VENUE_TRACK_ACTIVE = VENUE_TRACK_ACTIVE or false      -- When true, shows VENUE track instead of Camera/Lighting
-VENUE_PREV_MODE   = VENUE_PREV_MODE   or nil          -- Store previous mode before switching to VENUE track
+SING_ACTIVE       = SING_ACTIVE       or false       -- When true, shows Sing rows on VENUE track
+SPOT_ACTIVE       = SPOT_ACTIVE       or false       -- When true, shows Spot rows on VENUE track
+CAMERA_SUB_MODE   = CAMERA_SUB_MODE   or 1            -- 1=Single, 2=Multi (visible when Camera selected)
+CAMERA_DIRECTED   = CAMERA_DIRECTED   or false         -- Toggle: changes which rows Single/Multi show
+LIGHTING_SUB_MODE = LIGHTING_SUB_MODE or 1            -- 1=Post, 2=Light, 3=Misc (visible when Lighting selected)
 
 -- Utilities --------------------------------------------------------------
 local function color_to_u32(native_color, a)
@@ -138,8 +153,9 @@ end
 
 local function build_progress_for_take_full(take)
   local prog = {Expert={}, Hard={}, Medium={}, Easy={}}
-  for _,lab in ipairs(DIFFS) do for i=1,#REGIONS do prog[lab][i] = false end end
-  if not take or #REGIONS == 0 then return prog end
+  local sigs = {Expert={}, Hard={}, Medium={}, Easy={}}
+  for _,lab in ipairs(DIFFS) do for i=1,#REGIONS do prog[lab][i] = false; sigs[lab][i] = 0 end end
+  if not take or #REGIONS == 0 then return prog, sigs end
 
   local _, note_cnt = reaper.MIDI_CountEvts(take)
   for ni = 0, note_cnt-1 do
@@ -154,25 +170,27 @@ local function build_progress_for_take_full(take)
       local hitL = (pitch>=PITCH_RANGE.Easy[1]   and pitch<=PITCH_RANGE.Easy[2])
 
       if hitE or hitH or hitM or hitL then
+        local h = ppq_s + ppq_e + pitch*17
         for ri = 1, #REGIONS do
           local rs, re_ = REGIONS[ri].pos, REGIONS[ri].r_end
           if t_e > rs and t_s < re_ then
-            if hitE then prog.Expert[ri] = true end
-            if hitH then prog.Hard[ri]   = true end
-            if hitM then prog.Medium[ri] = true end
-            if hitL then prog.Easy[ri]   = true end
+            if hitE then prog.Expert[ri] = true; sigs.Expert[ri] = sigs.Expert[ri] + h end
+            if hitH then prog.Hard[ri]   = true; sigs.Hard[ri]   = sigs.Hard[ri]   + h end
+            if hitM then prog.Medium[ri] = true; sigs.Medium[ri] = sigs.Medium[ri] + h end
+            if hitL then prog.Easy[ri]   = true; sigs.Easy[ri]   = sigs.Easy[ri]   + h end
           end
         end
       end
     end
   end
-  return prog
+  return prog, sigs
 end
 
 local function build_progress_for_take_range(take, lo, hi)
   local arr = {}
-  for i=1,#REGIONS do arr[i] = false end
-  if not take or #REGIONS == 0 then return arr end
+  local sig_arr = {}
+  for i=1,#REGIONS do arr[i] = false; sig_arr[i] = 0 end
+  if not take or #REGIONS == 0 then return arr, sig_arr end
 
   local _, note_cnt = reaper.MIDI_CountEvts(take)
   for ni = 0, note_cnt-1 do
@@ -180,13 +198,14 @@ local function build_progress_for_take_range(take, lo, hi)
     if ok and pitch>=lo and pitch<=hi then
       local t_s = reaper.MIDI_GetProjTimeFromPPQPos(take, ppq_s)
       local t_e = reaper.MIDI_GetProjTimeFromPPQPos(take, ppq_e)
+      local h = ppq_s + ppq_e + pitch*17
       for ri = 1, #REGIONS do
         local rs, re_ = REGIONS[ri].pos, REGIONS[ri].r_end
-        if t_e > rs and t_s < re_ then arr[ri] = true end
+        if t_e > rs and t_s < re_ then arr[ri] = true; sig_arr[ri] = sig_arr[ri] + h end
       end
     end
   end
-  return arr
+  return arr, sig_arr
 end
 
 -- Persistence -----------------------------------------------------------
@@ -199,16 +218,32 @@ local function load_from(proj)
     local ok, key, val = reaper.EnumProjExtState(proj, EXTNAME, i)
     if not ok then break end
     if type(key) == "string" and key:find("|",1,true) then
+      -- Check for TIME format: "TIME|Tab|Diff|RegionName"
+      local time_tab, time_rest = key:match("^TIME|([^|]+)|(.+)$")
+      if time_tab and time_rest then
+        local tab_normalized = TAB_CANON[time_tab:upper()] or time_tab
+        local time_diff, time_region = time_rest:match("^([^|]+)|(.+)$")
+        if time_diff and time_region then
+          local ri = name_to_idx[time_region:upper()]
+          local secs = tonumber(val or "")
+          if ri and secs then
+            REGION_TIME[tab_normalized] = REGION_TIME[tab_normalized] or {}
+            REGION_TIME[tab_normalized][time_diff] = REGION_TIME[tab_normalized][time_diff] or {}
+            REGION_TIME[tab_normalized][time_diff][ri] = secs
+          end
+        end
       -- Check for Pro Keys format: "ProKeys|X|RegionName"
-      local pk_diff, pk_name = key:match("^ProKeys|(%w+)|(.+)$")
-      if pk_diff and pk_name then
-        -- Use uppercase for case-insensitive matching
-        local pk_ri = name_to_idx[pk_name:upper()]
-        if pk_ri then
-          local st = tonumber(val or "")
-          if pk_diff and st then
-            SAVED_PRO_KEYS[pk_diff] = SAVED_PRO_KEYS[pk_diff] or {}
-            SAVED_PRO_KEYS[pk_diff][pk_ri] = st
+      elseif key:match("^ProKeys|") then
+        local pk_diff, pk_name = key:match("^ProKeys|(%w+)|(.+)$")
+        if pk_diff and pk_name then
+          -- Use uppercase for case-insensitive matching
+          local pk_ri = name_to_idx[pk_name:upper()]
+          if pk_ri then
+            local st = tonumber(val or "")
+            if pk_diff and st then
+              SAVED_PRO_KEYS[pk_diff] = SAVED_PRO_KEYS[pk_diff] or {}
+              SAVED_PRO_KEYS[pk_diff][pk_ri] = st
+            end
           end
         end
       else
@@ -239,7 +274,99 @@ end
 function load_all_saved_states()
   SAVED = {}
   SAVED_PRO_KEYS = {}
+  REGION_TIME = {}
   load_from(0)
+end
+
+function save_region_time(tab, diff, ri, secs)
+  local region_name = get_region_name_by_index(ri)
+  if not region_name then return end
+  local k = ("TIME|%s|%s|%s"):format(tab, diff, region_name)
+  reaper.SetProjExtState(0, EXTNAME, k, tostring(secs))
+end
+
+function get_region_time(tab, diff, ri)
+  return (REGION_TIME[tab] and REGION_TIME[tab][diff] and REGION_TIME[tab][diff][ri]) or 0
+end
+
+function current_timer_diff()
+  local tab = current_tab
+  if tab == "Keys" and PRO_KEYS_ACTIVE then
+    local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
+    return "Pro " .. (diff_map[ACTIVE_DIFF] or "X")
+  elseif tab == "Vocals" then
+    return VOCALS_MODE
+  elseif tab == "Venue" then
+    return VENUE_MODE
+  else
+    return ACTIVE_DIFF
+  end
+end
+
+function region_time_tick()
+  local now = reaper.time_precise()
+  local ri = active_region_index()
+  local tab = current_tab
+  local diff = current_timer_diff()
+
+  -- Track mouse movement for inactivity detection
+  local mx, my = reaper.GetMousePosition()
+  if mx ~= MOUSE_LAST_X or my ~= MOUSE_LAST_Y then
+    MOUSE_LAST_X = mx
+    MOUSE_LAST_Y = my
+    MOUSE_LAST_MOVE_TIME = now
+  end
+  local inactive = MOUSE_LAST_MOVE_TIME and (now - MOUSE_LAST_MOVE_TIME >= 0.5)
+
+  -- Only count for tabs that have a progress table (not Preferences/Setup/Overdrive)
+  local valid_tab = (tab == "Drums" or tab == "Bass" or tab == "Guitar"
+                     or tab == "Keys" or tab == "Vocals" or tab == "Venue")
+
+  -- Check if the active difficulty cell for this region is In Progress
+  local all_idle = false
+  if valid_tab and ri then
+    local st
+    if tab == "Keys" and PRO_KEYS_ACTIVE then
+      local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
+      local diff_key = diff_map[ACTIVE_DIFF] or "X"
+      st = (STATE_PRO_KEYS[diff_key] and STATE_PRO_KEYS[diff_key][ri]) or 0
+    else
+      local state_diff = (tab == "Vocals") and VOCALS_MODE
+                   or (tab == "Venue") and VENUE_MODE
+                   or ACTIVE_DIFF
+      st = (STATE[tab] and STATE[tab][state_diff] and STATE[tab][state_diff][ri]) or 0
+    end
+    all_idle = (st ~= 1)
+  end
+
+  -- Must reset anchor when conditions change so inactive time isn't credited
+  if not valid_tab or not ri or inactive or all_idle
+     or ri ~= REGION_TIME_LAST_REGION or tab ~= REGION_TIME_LAST_TAB
+     or diff ~= REGION_TIME_LAST_DIFF then
+    REGION_TIME_LAST_TICK = nil
+    REGION_TIME_LAST_REGION = ri
+    REGION_TIME_LAST_TAB = tab
+    REGION_TIME_LAST_DIFF = diff
+    return
+  end
+
+  -- Start fresh anchor when resuming from a reset
+  if not REGION_TIME_LAST_TICK then
+    REGION_TIME_LAST_TICK = now
+    return
+  end
+
+  -- Accumulate whole seconds
+  local elapsed = now - REGION_TIME_LAST_TICK
+  if elapsed >= 1.0 then
+    local whole = math.floor(elapsed)
+    REGION_TIME_LAST_TICK = REGION_TIME_LAST_TICK + whole
+    REGION_TIME[tab] = REGION_TIME[tab] or {}
+    REGION_TIME[tab][diff] = REGION_TIME[tab][diff] or {}
+    local prev = REGION_TIME[tab][diff][ri] or 0
+    REGION_TIME[tab][diff][ri] = prev + whole
+    save_region_time(tab, diff, ri, REGION_TIME[tab][diff][ri])
+  end
 end
 
 function save_cell_state(tab,diff,ri,state)
@@ -254,6 +381,13 @@ function save_cell_state(tab,diff,ri,state)
   SAVED[tab] = SAVED[tab] or {}
   SAVED[tab][diff] = SAVED[tab][diff] or {}
   SAVED[tab][diff][ri] = state
+  -- When marking Complete, snapshot the current MIDI signature
+  if state == 2 then
+    local sig_val = PROGRESS_SIG[tab] and PROGRESS_SIG[tab][diff] and PROGRESS_SIG[tab][diff][ri] or 0
+    COMPLETE_SIG[tab] = COMPLETE_SIG[tab] or {}
+    COMPLETE_SIG[tab][diff] = COMPLETE_SIG[tab][diff] or {}
+    COMPLETE_SIG[tab][diff][ri] = sig_val
+  end
 end
 
 -- Merge rules / state ---------------------------------------------------
@@ -387,6 +521,12 @@ function save_pro_keys_cell_state(diff_key, ri, state)
   reaper.SetProjExtState(0, EXTNAME, k, tostring(state))
   SAVED_PRO_KEYS[diff_key] = SAVED_PRO_KEYS[diff_key] or {}
   SAVED_PRO_KEYS[diff_key][ri] = state
+  -- When marking Complete, snapshot the current MIDI signature
+  if state == 2 then
+    local sig_val = PROGRESS_SIG_PRO_KEYS[diff_key] and PROGRESS_SIG_PRO_KEYS[diff_key][ri] or 0
+    COMPLETE_SIG_PRO_KEYS[diff_key] = COMPLETE_SIG_PRO_KEYS[diff_key] or {}
+    COMPLETE_SIG_PRO_KEYS[diff_key][ri] = sig_val
+  end
 end
 
 local function rebuild_state_for_pro_keys()
@@ -404,6 +544,16 @@ local function rebuild_state_for_pro_keys()
           save_pro_keys_cell_state(diff_key, ri, 1)
         elseif saved == 0 then
           st = live and 1 or 0
+        elseif saved == 2 then
+          -- Check if MIDI changed since completion
+          local cur_sig = PROGRESS_SIG_PRO_KEYS[diff_key] and PROGRESS_SIG_PRO_KEYS[diff_key][ri] or 0
+          local cmp_sig = COMPLETE_SIG_PRO_KEYS[diff_key] and COMPLETE_SIG_PRO_KEYS[diff_key][ri]
+          if cmp_sig ~= nil and cur_sig ~= cmp_sig then
+            st = 1
+            save_pro_keys_cell_state(diff_key, ri, 1)
+          else
+            st = saved
+          end
         else
           st = saved
         end
@@ -411,6 +561,11 @@ local function rebuild_state_for_pro_keys()
         st = live and 1 or 0
       end
       STATE_PRO_KEYS[diff_key][ri] = st
+      -- Snapshot current MIDI sig for Complete cells so we detect changes this session
+      if st == 2 then
+        COMPLETE_SIG_PRO_KEYS[diff_key] = COMPLETE_SIG_PRO_KEYS[diff_key] or {}
+        COMPLETE_SIG_PRO_KEYS[diff_key][ri] = PROGRESS_SIG_PRO_KEYS[diff_key] and PROGRESS_SIG_PRO_KEYS[diff_key][ri] or 0
+      end
     end
   end
 end
@@ -430,6 +585,16 @@ local function rebuild_state_for_tab(tab)
             save_cell_state("Vocals", diff, ri, 1)
           elseif saved == 0 then
             st = live and 1 or 0
+          elseif saved == 2 then
+            -- Check if MIDI changed since completion
+            local cur_sig = PROGRESS_SIG.Vocals and PROGRESS_SIG.Vocals[diff] and PROGRESS_SIG.Vocals[diff][ri] or 0
+            local cmp_sig = COMPLETE_SIG.Vocals and COMPLETE_SIG.Vocals[diff] and COMPLETE_SIG.Vocals[diff][ri]
+            if cmp_sig ~= nil and cur_sig ~= cmp_sig then
+              st = 1
+              save_cell_state("Vocals", diff, ri, 1)
+            else
+              st = saved
+            end
           else
             st = saved
           end
@@ -437,6 +602,12 @@ local function rebuild_state_for_tab(tab)
           st = live and 1 or 0
         end
         STATE.Vocals[diff][ri] = st
+        -- Snapshot current MIDI sig for Complete cells so we detect changes this session
+        if st == 2 then
+          COMPLETE_SIG.Vocals = COMPLETE_SIG.Vocals or {}
+          COMPLETE_SIG.Vocals[diff] = COMPLETE_SIG.Vocals[diff] or {}
+          COMPLETE_SIG.Vocals[diff][ri] = PROGRESS_SIG.Vocals and PROGRESS_SIG.Vocals[diff] and PROGRESS_SIG.Vocals[diff][ri] or 0
+        end
       end
     end
     return
@@ -456,6 +627,16 @@ local function rebuild_state_for_tab(tab)
             save_cell_state("Venue", diff, ri, 1)
           elseif saved == 0 then
             st = live and 1 or 0
+          elseif saved == 2 then
+            -- Check if MIDI changed since completion
+            local cur_sig = PROGRESS_SIG.Venue and PROGRESS_SIG.Venue[diff] and PROGRESS_SIG.Venue[diff][ri] or 0
+            local cmp_sig = COMPLETE_SIG.Venue and COMPLETE_SIG.Venue[diff] and COMPLETE_SIG.Venue[diff][ri]
+            if cmp_sig ~= nil and cur_sig ~= cmp_sig then
+              st = 1
+              save_cell_state("Venue", diff, ri, 1)
+            else
+              st = saved
+            end
           else
             st = saved
           end
@@ -463,6 +644,12 @@ local function rebuild_state_for_tab(tab)
           st = live and 1 or 0
         end
         STATE.Venue[diff][ri] = st
+        -- Snapshot current MIDI sig for Complete cells so we detect changes this session
+        if st == 2 then
+          COMPLETE_SIG.Venue = COMPLETE_SIG.Venue or {}
+          COMPLETE_SIG.Venue[diff] = COMPLETE_SIG.Venue[diff] or {}
+          COMPLETE_SIG.Venue[diff][ri] = PROGRESS_SIG.Venue and PROGRESS_SIG.Venue[diff] and PROGRESS_SIG.Venue[diff][ri] or 0
+        end
       end
     end
     return
@@ -482,6 +669,16 @@ local function rebuild_state_for_tab(tab)
           save_cell_state(tab, diff, ri, 1)
         elseif saved == 0 then
           st = live and 1 or 0
+        elseif saved == 2 then
+          -- Check if MIDI changed since completion
+          local cur_sig = PROGRESS_SIG[tab] and PROGRESS_SIG[tab][diff] and PROGRESS_SIG[tab][diff][ri] or 0
+          local cmp_sig = COMPLETE_SIG[tab] and COMPLETE_SIG[tab][diff] and COMPLETE_SIG[tab][diff][ri]
+          if cmp_sig ~= nil and cur_sig ~= cmp_sig then
+            st = 1
+            save_cell_state(tab, diff, ri, 1)
+          else
+            st = saved
+          end
         else
           st = saved
         end
@@ -489,6 +686,12 @@ local function rebuild_state_for_tab(tab)
         st = live and 1 or 0
       end
       STATE[tab][diff][ri] = st
+      -- Snapshot current MIDI sig for Complete cells so we detect changes this session
+      if st == 2 then
+        COMPLETE_SIG[tab] = COMPLETE_SIG[tab] or {}
+        COMPLETE_SIG[tab][diff] = COMPLETE_SIG[tab][diff] or {}
+        COMPLETE_SIG[tab][diff][ri] = PROGRESS_SIG[tab] and PROGRESS_SIG[tab][diff] and PROGRESS_SIG[tab][diff][ri] or 0
+      end
     end
   end
 end
@@ -506,7 +709,9 @@ end
 function compute_tab(tab)
   local tr = find_track_by_name(TAB_TRACK[tab])
   local tk = first_midi_take_on_track(tr)
-  PROGRESS[tab] = build_progress_for_take_full(tk)
+  local prog, sigs = build_progress_for_take_full(tk)
+  PROGRESS[tab] = prog
+  PROGRESS_SIG[tab] = sigs
   TAB_SIG[tab]  = make_sig_for_take(tk)
   rebuild_state_for_tab(tab)
 end
@@ -518,7 +723,9 @@ local function compute_vocals()
     local tr = find_track_by_name(trackname)
     local tk = first_midi_take_on_track(tr)
     local lo, hi = VOCALS_PITCH_RANGE[1], VOCALS_PITCH_RANGE[2]
-    PROGRESS.Vocals[mode] = build_progress_for_take_range(tk, lo, hi)
+    local prog, sig_arr = build_progress_for_take_range(tk, lo, hi)
+    PROGRESS.Vocals[mode] = prog
+    PROGRESS_SIG.Vocals[mode] = sig_arr
   end
   -- Use active mode's take for signature
   local active_tr = find_track_by_name(VOCALS_TRACKS[VOCALS_MODE])
@@ -534,7 +741,9 @@ local function compute_venue()
     local tr = find_track_by_name(trackname)
     local tk = first_midi_take_on_track(tr)
     -- Use full pitch range for venue tracks
-    PROGRESS.Venue[mode] = build_progress_for_take_range(tk, 0, 127)
+    local prog, sig_arr = build_progress_for_take_range(tk, 0, 127)
+    PROGRESS.Venue[mode] = prog
+    PROGRESS_SIG.Venue[mode] = sig_arr
   end
   TAB_SIG.Venue = "venue_computed"  -- Simple signature since we compute both
   rebuild_state_for_tab("Venue")
@@ -546,7 +755,9 @@ local function compute_pro_keys_difficulty(diff_key)
   local tr = find_track_by_name(trackname)
   local tk = first_midi_take_on_track(tr)
   local lo, hi = PRO_KEYS_PITCH_RANGE[1], PRO_KEYS_PITCH_RANGE[2]
-  PROGRESS_PRO_KEYS[diff_key] = build_progress_for_take_range(tk, lo, hi)
+  local prog, sig_arr = build_progress_for_take_range(tk, lo, hi)
+  PROGRESS_PRO_KEYS[diff_key] = prog
+  PROGRESS_SIG_PRO_KEYS[diff_key] = sig_arr
 end
 
 function compute_pro_keys()
@@ -818,6 +1029,46 @@ function is_all_empty(tab, diff)
   return true
 end
 
+-- Auto-select the leftmost difficulty that is not yet at 100%.
+-- For Vocals: also skip difficulties that are all-Empty.
+-- Returns nothing; mutates ACTIVE_DIFF / VOCALS_MODE directly.
+-- For instrument tabs also applies CUSTOM_NOTE_ORDER via run_set.
+function auto_select_difficulty(tab)
+  if tab == "Vocals" then
+    for _, mode in ipairs(DIFFS_VOX) do
+      if not is_all_empty("Vocals", mode) and diff_pct("Vocals", mode) < 100 then
+        VOCALS_MODE = mode
+        return
+      end
+    end
+    VOCALS_MODE = DIFFS_VOX[1]
+  elseif tab == "Venue" then
+    -- Venue has Camera/Lighting, nothing to auto-select
+    return
+  elseif tab == "Keys" and PRO_KEYS_ACTIVE then
+    local pk_to_diff = { X="Expert", H="Hard", M="Medium", E="Easy" }
+    local chosen = "Expert"
+    for _, pk in ipairs(DIFFS_PRO_KEYS) do
+      if diff_pct("Keys", "Pro " .. pk) < 100 then
+        chosen = pk_to_diff[pk]
+        break
+      end
+    end
+    ACTIVE_DIFF = chosen
+    run_set(ACTIVE_DIFF:upper())
+  elseif tab == "Drums" or tab == "Bass" or tab == "Guitar" or tab == "Keys" then
+    local chosen = DIFFS[1]
+    for _, d in ipairs(DIFFS) do
+      if diff_pct(tab, d) < 100 then
+        chosen = d
+        break
+      end
+    end
+    ACTIVE_DIFF = chosen
+    run_set(ACTIVE_DIFF:upper())
+  end
+end
+
 -- Weighted overall completion for instrument tabs
 -- X=50%, H=25%, M=15%, E=10%
 function weighted_tab_pct(tab)
@@ -960,8 +1211,17 @@ function Progress_Init(skip_fx_align)
   -- Reset state tables for new project
   PROGRESS = {Drums={}, Bass={}, Guitar={}, Keys={}, Vocals={H1={},H2={},H3={},V={}}, Venue={Camera={},Lighting={}}}
   STATE = {Drums={}, Bass={}, Guitar={}, Keys={}, Vocals={H1={},H2={},H3={},V={}}, Venue={Camera={},Lighting={}}}
+  REGION_TIME = {}
+  REGION_TIME_LAST_TICK = nil
+  REGION_TIME_LAST_REGION = nil
+  REGION_TIME_LAST_TAB = nil
+  REGION_TIME_LAST_DIFF = nil
   PROGRESS_PRO_KEYS = {X={}, H={}, M={}, E={}}
   STATE_PRO_KEYS = {X={}, H={}, M={}, E={}}
+  PROGRESS_SIG = {Drums={}, Bass={}, Guitar={}, Keys={}, Vocals={H1={},H2={},H3={},V={}}, Venue={Camera={},Lighting={}}}
+  COMPLETE_SIG = {}
+  PROGRESS_SIG_PRO_KEYS = {X={}, H={}, M={}, E={}}
+  COMPLETE_SIG_PRO_KEYS = {}
   OVERDRIVE_DATA = { Drums={}, Bass={}, Guitar={}, Keys={} }
   OVERDRIVE_NOTES = { Drums={}, Bass={}, Guitar={}, Keys={} }
   OVERDRIVE_NOTE_POSITIONS = { Drums={}, Bass={}, Guitar={}, Keys={} }  -- Note positions within measures (0-1)
@@ -999,6 +1259,47 @@ function Progress_Init(skip_fx_align)
 end
 
 function Progress_Tick()
+  -- Check if the project has changed (must be first, before any saves)
+  local new_proj = select(2, reaper.EnumProjects(-1))
+  if new_proj ~= PROJ then
+    -- Set flag to suppress normal tab switch handling
+    PROJECT_SWITCH_MODE = true
+    
+    -- Project changed - reinitialize everything (this updates PROJ to new_proj)
+    Progress_Init()
+    
+    -- Restore tab from NEW project (or reset to first tab if none saved)
+    local _, saved_tab = reaper.GetProjExtState(PROJ, EXT_NS, "LAST_TAB")
+    reaper.ShowConsoleMsg("Project switch - saved_tab from new project: '" .. tostring(saved_tab) .. "'\n")
+    local found_tab = nil
+    if saved_tab and saved_tab ~= "" then
+      -- Validate saved tab is in TABS list
+      for _, t in ipairs(TABS) do
+        if t == saved_tab then
+          found_tab = saved_tab
+          break
+        end
+      end
+    end
+    -- Apply found tab, or reset to first tab if no saved tab
+    current_tab = found_tab or TABS[1]
+    last_tab = current_tab
+    -- Auto-select leftmost incomplete difficulty for the new project's tab
+    auto_select_difficulty(current_tab)
+    -- Force ImGui to actually select this tab (it maintains internal state)
+    if force_tab_selection then
+      force_tab_selection(current_tab, 3)
+    end
+    -- Schedule screenset load after a delay to avoid conflicts with tab switching
+    PENDING_SCREENSET_TAB = current_tab
+    PENDING_SCREENSET_FRAMES = 5
+    reaper.ShowConsoleMsg("Applied tab: '" .. tostring(current_tab) .. "'\n")
+    return
+  end
+
+  -- Tick region time counter (after project switch check to avoid saving old values to new project)
+  region_time_tick()
+
   -- Process pending screenset load (for project switches)
   if PENDING_SCREENSET_FRAMES > 0 then
     PENDING_SCREENSET_FRAMES = PENDING_SCREENSET_FRAMES - 1
@@ -1027,7 +1328,7 @@ function Progress_Tick()
       PROJECT_SWITCH_MODE = false
     end
   end
-  
+
   -- Process pending FX alignment (for project switches)
   if PENDING_FX_ALIGN_FRAMES > 0 then
     PENDING_FX_ALIGN_FRAMES = PENDING_FX_ALIGN_FRAMES - 1
@@ -1039,43 +1340,7 @@ function Progress_Tick()
       end
     end
   end
-  
-  -- Check if the project has changed
-  local new_proj = select(2, reaper.EnumProjects(-1))
-  if new_proj ~= PROJ then
-    -- Set flag to suppress normal tab switch handling
-    PROJECT_SWITCH_MODE = true
-    
-    -- Project changed - reinitialize everything (this updates PROJ to new_proj)
-    Progress_Init()
-    
-    -- Restore tab from NEW project (or reset to first tab if none saved)
-    local _, saved_tab = reaper.GetProjExtState(PROJ, EXT_NS, "LAST_TAB")
-    reaper.ShowConsoleMsg("Project switch - saved_tab from new project: '" .. tostring(saved_tab) .. "'\n")
-    local found_tab = nil
-    if saved_tab and saved_tab ~= "" then
-      -- Validate saved tab is in TABS list
-      for _, t in ipairs(TABS) do
-        if t == saved_tab then
-          found_tab = saved_tab
-          break
-        end
-      end
-    end
-    -- Apply found tab, or reset to first tab if no saved tab
-    current_tab = found_tab or TABS[1]
-    last_tab = current_tab
-    -- Force ImGui to actually select this tab (it maintains internal state)
-    if force_tab_selection then
-      force_tab_selection(current_tab, 3)
-    end
-    -- Schedule screenset load after a delay to avoid conflicts with tab switching
-    PENDING_SCREENSET_TAB = current_tab
-    PENDING_SCREENSET_FRAMES = 5
-    reaper.ShowConsoleMsg("Applied tab: '" .. tostring(current_tab) .. "'\n")
-    return
-  end
-  
+
   local cc = reaper.GetProjectStateChangeCount(0)
   local tab_switched = (current_tab ~= last_tab)
   local vox_switched = (VOCALS_MODE ~= last_vocals_mode)
@@ -1098,7 +1363,9 @@ function Progress_Tick()
       local tk = first_midi_take_on_track(tr)
       local sig = make_sig_for_take(tk)
       if TAB_SIG[t] ~= sig then
-        PROGRESS[t] = build_progress_for_take_full(tk)
+        local prog, sigs = build_progress_for_take_full(tk)
+        PROGRESS[t] = prog
+        PROGRESS_SIG[t] = sigs
         TAB_SIG[t] = sig
         rebuild_state_for_tab(t)
       end
@@ -1130,7 +1397,9 @@ function Progress_Tick()
       local tk = first_midi_take_on_track(tr)
       local sig = make_sig_for_take(tk)
       if TAB_SIG[current_tab] ~= sig then
-        PROGRESS[current_tab] = build_progress_for_take_full(tk)
+        local prog, sigs = build_progress_for_take_full(tk)
+        PROGRESS[current_tab] = prog
+        PROGRESS_SIG[current_tab] = sigs
         TAB_SIG[current_tab] = sig
         rebuild_state_for_tab(current_tab)
       end
