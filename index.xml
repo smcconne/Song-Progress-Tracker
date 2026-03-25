@@ -1,36 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <index version="1" name="FinestCardboardPearls Scripts">
   <metadata>
-    <description><![CDATA[Scripts for Rock Band 3 song authoring in REAPER.
-
-**FCP Song Progress Tracker** - Multi-tab hub for tracking authoring progress, context switching, and workflow management including running user-definable actions on tab switch.
-
-**FCP Spectracular Patcher** - Patches talagan's Spectracular with helpful vocals charting functionality: viewport persistence, modified mouse wheel behavior (vertical pan, Ctrl+wheel vertical zoom, Alt+wheel horizontal zoom), MIDI note overlay with lyrics, note preview on click, and smaller minimum window size.
-
-**FCP Venue Preview Lighting Camera** - Animated sprite previewer for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
-
-**FCP Lyrics Clipboard** - Paste lyrics and automatically assign them to sequential MIDI notes. Saves lyrics per-region.
-
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Scripts for Rock Band 3 song authoring in REAPER.\line\line
+{\b FCP Song Progress Tracker} - Multi-tab hub for tracking authoring progress, context switching, and workflow management including running user-definable actions on tab switch.\line\line
+{\b FCP Spectracular Patcher} - Patches talagan's Spectracular with helpful vocals charting functionality: viewport persistence, modified mouse wheel behavior (vertical pan, Ctrl+wheel vertical zoom, Alt+wheel horizontal zoom), MIDI note overlay with lyrics, note preview on click, and smaller minimum window size.\line\line
+{\b FCP Venue Preview Lighting Camera} - Animated sprite previewer for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.\line\line
+{\b FCP Lyrics Clipboard} - Paste lyrics and automatically assign them to sequential MIDI notes. Saves lyrics per-region.\line\line
 Additional utility scripts for MIDI editing, tempo prediction, and difficulty switching are also included.
-]]></description>
+}]]></description>
   </metadata>
   <category name="Song Progress Tracker">
     <reapack name="FCP Song Progress Tracker.lua" type="script">
       <metadata>
-        <description><![CDATA[Multi-tab interface for tracking Rock Band song authoring progress.
-
-My goal is to make this a complete authoring companion toolkit to streamline charting
-
-Features:
-- Multi-tab interface for tracking Rock Band song progress
-- RBN Preview window alignment and screenset management
-- User-assignable actions run on tab switch for streamlined workflow
-- Import separated stems to the correct tracks
-- Create regions from practice sections
-- Overdrive table showing note density with guides to help with placement
-- Jump between Regions while preserving relative position
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Multi-tab interface for tracking Rock Band song authoring progress.\line\line
+My goal is to make this a complete authoring companion toolkit to streamline charting\line\line
+Features:\line
+- Multi-tab interface for tracking Rock Band song progress\line
+- RBN Preview window alignment and screenset management\line
+- User-assignable actions run on tab switch for streamlined workflow\line
+- Import separated stems to the correct tracks\line
+- Create regions from practice sections\line
+- Overdrive table showing note density with guides to help with placement\line
+- Jump between Regions while preserving relative position\line
 - NEW: timer column for tracking how much time you're spending on each section
-]]></description>
+}]]></description>
       </metadata>
       <version name="2.0" author="FinestCardboardPearls">
         <changelog><![CDATA[- Preferences Tab now has 15 user-assignable actions which run when switching to the assigned tab
@@ -143,7 +138,9 @@ Features:
     </reapack>
     <reapack name="FCP Lyrics Clipboard create and align lyric events to notes in each region.lua" type="script">
       <metadata>
-        <description><![CDATA[Automatically aligns lyric events to notes in each region.]]></description>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Automatically aligns lyric events to notes in each region.
+}]]></description>
       </metadata>
       <version name="2.20" author="FinestCardboardPearls">
         <changelog><![CDATA[- When grabbing lyric events from existing notes it now uses the currently selected track, not the first selected
@@ -153,17 +150,17 @@ Features:
     </reapack>
     <reapack name="FCP Spectracular Patcher.lua" type="script">
       <metadata>
-        <description><![CDATA[Patches talagan's Spectracular with helpful vocals charting functionality.
-
-Added features:
-- Ctrl or Alt + scroll to zoom vertically or horizontally by small amounts
-- Shift + scroll to pan horizontally
-- Click to both place edit cursor and set the active note row; after mouse-off, focus is directed to the active MIDI editor
-- Double click to place a note (fills approximate width or falls back to a 128th note)
-- Shows MIDI notes on spectrogram (displays lyric events if present); notes are selectable and resizable on the spectrogram
-- Right click to put edit cursor at 1/3 of view (hold to follow)
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Patches talagan's Spectracular with helpful vocals charting functionality.\line\line
+Added features:\line
+- Ctrl or Alt + scroll to zoom vertically or horizontally by small amounts\line
+- Shift + scroll to pan horizontally\line
+- Click to both place edit cursor and set the active note row; after mouse-off, focus is directed to the active MIDI editor\line
+- Double click to place a note (fills approximate width or falls back to a 128th note)\line
+- Shows MIDI notes on spectrogram (displays lyric events if present); notes are selectable and resizable on the spectrogram\line
+- Right click to put edit cursor at 1/3 of view (hold to follow)\line
 - Reasonable default horizontal / vertical zoom
-]]></description>
+}]]></description>
       </metadata>
       <version name="3.1" author="FinestCardboardPearls">
         <changelog><![CDATA[- Scrub is now triggered while dragging note edges
@@ -174,8 +171,9 @@ Added features:
     </reapack>
     <reapack name="FCP Venue Preview Lighting Camera.lua" type="script">
       <metadata>
-        <description><![CDATA[Animated sprite previewer for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
-]]></description>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Animated sprite previewer for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
+}]]></description>
       </metadata>
       <version name="1.1" author="FinestCardboardPearls">
         <changelog><![CDATA[- Fixed post-processing transitions so the new effect fades in while the old effect fades out
