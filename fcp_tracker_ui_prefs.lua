@@ -553,7 +553,35 @@ function draw_prefs_tab(ctx)
       if measured > 0 then PREFS_ROW_H = measured end
     end
     ImGui.ImGui_TableNextColumn(ctx)
-    ImGui.ImGui_Text(ctx, PREFS_ACTION_LABELS[key])
+    local is_custom = (def.default_label == DEFAULT_ACTION_LABEL)
+    if is_custom and PREFS_EDITING_LABEL == key then
+      ImGui.ImGui_SetNextItemWidth(ctx, -1)
+      if PREFS_EDITING_LABEL_FOCUS then
+        ImGui.ImGui_SetKeyboardFocusHere(ctx)
+        PREFS_EDITING_LABEL_FOCUS = false
+      end
+      local changed_lbl, new_lbl = ImGui.ImGui_InputText(ctx, "##lbl_edit_" .. key, PREFS_EDITING_LABEL_BUF or "")
+      if changed_lbl then PREFS_EDITING_LABEL_BUF = new_lbl end
+      if ImGui.ImGui_IsItemDeactivatedAfterEdit(ctx) or
+         (ImGui.ImGui_IsKeyPressed(ctx, ImGui.ImGui_Key_Escape()) and ImGui.ImGui_IsItemActive(ctx)) then
+        if PREFS_EDITING_LABEL_BUF and PREFS_EDITING_LABEL_BUF ~= "" then
+          PREFS_ACTION_LABELS[key] = PREFS_EDITING_LABEL_BUF
+          reaper.SetExtState(EXT_NS, "ACTION_LABEL_" .. key, PREFS_EDITING_LABEL_BUF, true)
+        end
+        PREFS_EDITING_LABEL = nil
+        PREFS_EDITING_LABEL_BUF = nil
+      elseif not ImGui.ImGui_IsItemActive(ctx) and not ImGui.ImGui_IsItemFocused(ctx) then
+        PREFS_EDITING_LABEL = nil
+        PREFS_EDITING_LABEL_BUF = nil
+      end
+    else
+      ImGui.ImGui_Text(ctx, PREFS_ACTION_LABELS[key])
+      if is_custom and ImGui.ImGui_IsItemHovered(ctx) and ImGui.ImGui_IsMouseDoubleClicked(ctx, 0) then
+        PREFS_EDITING_LABEL = key
+        PREFS_EDITING_LABEL_BUF = PREFS_ACTION_LABELS[key]
+        PREFS_EDITING_LABEL_FOCUS = true
+      end
+    end
     ImGui.ImGui_TableNextColumn(ctx)
     draw_action_tab_combo(ctx, key)
     ImGui.ImGui_TableNextColumn(ctx)
