@@ -423,6 +423,9 @@ function draw_prefs_tab(ctx)
   ImGui.ImGui_Separator(ctx)
   ImGui.ImGui_Spacing(ctx)
 
+  -- Scrollbar width used to keep header and body table columns aligned
+  local scrollbar_w = ImGui.ImGui_GetStyleVar(ctx, ImGui.ImGui_StyleVar_ScrollbarSize())
+
   -- Initialize buffers from ExtState if not already done
   if not SETUP_CMD_BUFFERS then
     SETUP_CMD_BUFFERS = {}
@@ -465,7 +468,8 @@ function draw_prefs_tab(ctx)
   --------------------------------------------------------------
   -- HEADER TABLE (fixed, outside scrolling child)
   --------------------------------------------------------------
-  if ImGui.ImGui_BeginTable(ctx, "PrefsActionsHdr", 5, tbl_flags) then
+  local hdr_avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
+  if ImGui.ImGui_BeginTable(ctx, "PrefsActionsHdr", 5, tbl_flags, hdr_avail_w - scrollbar_w) then
     ImGui.ImGui_TableSetupColumn(ctx, "Action Name", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
     ImGui.ImGui_TableSetupColumn(ctx, "Run When Navigating to This Set of Tabs", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
     ImGui.ImGui_TableSetupColumn(ctx, "Leaving Tab Set", ImGui.ImGui_TableColumnFlags_WidthFixed(), 90)
