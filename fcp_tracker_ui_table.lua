@@ -390,6 +390,11 @@ function draw_table(ctx, redirect_focus_after_click)
   local child_flags = ImGui.ImGui_WindowFlags_NoScrollWithMouse()
   if ImGui.ImGui_BeginChild(ctx, "rows_scroller", 0, body_h, 0, child_flags) then
 
+    -- Visible bounds of the scroll child (screen coords) for hit-test clamping
+    local child_sx, child_sy = ImGui.ImGui_GetWindowPos(ctx)
+    local child_visible_y1 = child_sy
+    local child_visible_y2 = child_sy + body_h
+
     local sy = ImGui.ImGui_GetScrollY(ctx)
 
     if not need_center_now then
@@ -589,6 +594,7 @@ function draw_table(ctx, redirect_focus_after_click)
         local cell_h = row_h
         local mouse_in_cell = mouse_x >= prog_cell_x and mouse_x < prog_cell_x + cell_w
                           and mouse_y >= prog_cell_y and mouse_y < prog_cell_y + cell_h
+                          and mouse_y >= child_visible_y1 and mouse_y < child_visible_y2
         
         if PAINT.down and mouse_in_cell and not PAINT.seEN[r] and not LISTEN_DRAG_ACTIVE then
           apply_toggle(current_tab, display_diff, r)

@@ -1,13 +1,13 @@
 -- @description FCP Song Progress Tracker
 -- @author FinestCardboardPearls
--- @version 2.0
+-- @version 2.1
 -- @provides
 --   [nomain] fcp_tracker_config.lua
 --   [nomain] fcp_tracker_chunk_parse.lua
 --   [nomain] fcp_tracker_focus.lua
 --   [nomain] fcp_tracker_fxchain_geom.lua
 --   [nomain] fcp_tracker_layout.lua
---   [nomain] fcp_tracker_templates.lua
+--   [nomain] fcp_tracker_chunk_update.lua
 --   [nomain] fcp_tracker_util_fs.lua
 --   [nomain] fcp_tracker_util_selection.lua
 --   [nomain] fcp_tracker_model.lua
@@ -32,7 +32,7 @@
 -- Rock Band Song Progress Tracker
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
-SCRIPT_VERSION = "2.0"
+SCRIPT_VERSION = "2.1"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
@@ -100,7 +100,7 @@ local to_load = {
   "fcp_tracker_util_fs.lua",
   "fcp_tracker_chunk_parse.lua",
   "fcp_tracker_fxchain_geom.lua",
-  "fcp_tracker_templates.lua",
+  "fcp_tracker_chunk_update.lua",
   "fcp_tracker_focus.lua",
   "fcp_tracker_layout.lua",
   "fcp_tracker_model.lua",
@@ -258,6 +258,21 @@ local function check_previews_signal()
           local trackname = PRO_KEYS_TRACKS[diff_key]
           select_and_scroll_track_by_name(trackname, 40818, 40726)
         end
+      elseif request == "HOPOS" then
+        PAIR_MODE = 1
+        run_set("HOPOS")
+      elseif request == "TRILLS" then
+        PAIR_MODE = 2
+        run_set("TRILLS")
+      elseif request == "PK_DEFAULT" then
+        PAIR_MODE = 0
+        run_set("PK_DEFAULT")
+      elseif request == "PK_RANGE" then
+        PAIR_MODE = 1
+        run_set("PK_RANGE")
+      elseif request == "PK_TRILL" then
+        PAIR_MODE = 2
+        run_set("PK_TRILL")
       end
     end
   end
@@ -338,6 +353,15 @@ local function main_loop()
       run_actions_on_tab_switch("", current_tab)
       disable_reasynth_except_for_tab(current_tab)
       ensure_listen_fx_for_tab(current_tab)
+      -- Apply default Pro Keys note rows (48-72) on startup if in Pro Keys mode
+      if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+        reaper.SetExtState("FCP_PREVIEWS", "REQUEST", "PK_DEFAULT", false)
+      end
+      -- Apply default Vocals note rows (48-66) on startup if in Vocals mode
+      if current_tab == "Vocals" then
+        VOCALS_NOTE_START = 48
+        apply_vocals_note_order(VOCALS_NOTE_START)
+      end
       -- End startup mode - now tab switches can have normal side effects
       FCP_STARTUP_MODE = false
     end

@@ -8,6 +8,12 @@ local ImGui  = reaper
 -- global single-select state across tabs: 0 = none, 1 = A (Toms/HOPOs), 2 = B (Rolls/Trills)
 PAIR_MODE = PAIR_MODE or 0
 
+-- Vocals note row range: start note (range is start .. start+18)
+VOCALS_NOTE_START = VOCALS_NOTE_START or 48
+local VOCALS_NOTE_MIN = 36
+local VOCALS_NOTE_MAX = 66
+local VOCALS_NOTE_STEP = 3
+
 -- Metrics (initialized in Progress_UI_Init)
 BUTTONS_COL_W = nil
 
@@ -363,6 +369,36 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
             reaper.defer(redirect_focus_after_click)
           end
         end
+
+        -- Up/Down arrow buttons for shifting Vocals note row range
+        local arrow_w = ImGui.ImGui_GetFrameHeight(ctx)  -- square: width == height
+        local arrow_base_x = x0 + 4*(BTN_W+BTN_GAP) + BTN_GAP
+        local saved_col_text = COL_TEXT
+
+        -- Up arrow
+        ImGui.ImGui_SetCursorPosX(ctx, arrow_base_x)
+        ImGui.ImGui_SetCursorPosY(ctx, y0)
+        local at_max = VOCALS_NOTE_START >= VOCALS_NOTE_MAX
+        if at_max then COL_TEXT = 0x555555FF end
+        if PairSquareButton(ctx, "\xe2\x96\xb2", false, arrow_w, 0.6) and not at_max then
+          VOCALS_NOTE_START = math.min(VOCALS_NOTE_START + VOCALS_NOTE_STEP, VOCALS_NOTE_MAX)
+          apply_vocals_note_order(VOCALS_NOTE_START)
+          reaper.defer(redirect_focus_after_click)
+        end
+        if at_max then COL_TEXT = saved_col_text end
+
+        -- Down arrow
+        ImGui.ImGui_SetCursorPosX(ctx, arrow_base_x + arrow_w + BTN_GAP)
+        ImGui.ImGui_SetCursorPosY(ctx, y0)
+        local at_min = VOCALS_NOTE_START <= VOCALS_NOTE_MIN
+        if at_min then COL_TEXT = 0x555555FF end
+        if PairSquareButton(ctx, "\xe2\x96\xbc", false, arrow_w, 0.75) and not at_min then
+          VOCALS_NOTE_START = math.max(VOCALS_NOTE_START - VOCALS_NOTE_STEP, VOCALS_NOTE_MIN)
+          apply_vocals_note_order(VOCALS_NOTE_START)
+          reaper.defer(redirect_focus_after_click)
+        end
+        if at_min then COL_TEXT = saved_col_text end
+
       else
         -- Difficulties X/H/M/E
         local map = { "X","H","M","E" }
@@ -510,22 +546,27 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
           end
         end
 
-        -- Pair buttons (hide HOPOs/Trills when in Pro Keys mode)
-        if not (current_tab == "Keys" and PRO_KEYS_ACTIVE) then
+        -- Pair buttons: Pro Keys mode shows Range/Trill, others show HOPOs/Trills (or Toms/Rolls)
+        do
           local base_x  = x0 + 4*(BTN_W+BTN_GAP) + BTN_GAP
-          local A_label = (current_tab == "Drums") and "Toms"  or "HOPOs"
-          local B_label = (current_tab == "Drums") and "Rolls" or "Trills"
+          local is_pro_keys = (current_tab == "Keys" and PRO_KEYS_ACTIVE)
+          local A_label = is_pro_keys and "Range"
+                       or (current_tab == "Drums") and "Toms" or "HOPOs"
+          local B_label = is_pro_keys and "Trill"
+                       or (current_tab == "Drums") and "Rolls" or "Trills"
+          local A_req   = is_pro_keys and "PK_RANGE" or "HOPOS"
+          local B_req   = is_pro_keys and "PK_TRILL" or "TRILLS"
 
           ImGui.ImGui_SetCursorPosX(ctx, base_x)
           ImGui.ImGui_SetCursorPosY(ctx, y0)
           if PairSquareButton(ctx, A_label, PAIR_MODE == 1, PAIR_W) then
             if PAIR_MODE == 1 then
               PAIR_MODE = 0
-              local back = ({Expert="EXPERT", Hard="HARD", Medium="MEDIUM", Easy="EASY"})[ACTIVE_DIFF]
+              local back = is_pro_keys and "PK_DEFAULT" or ({Expert="EXPERT", Hard="HARD", Medium="MEDIUM", Easy="EASY"})[ACTIVE_DIFF]
               reaper.SetExtState(EXT_NS, EXT_REQ, back, false)
             else
               PAIR_MODE = 1
-              reaper.SetExtState(EXT_NS, EXT_REQ, "HOPOS", false)
+              reaper.SetExtState(EXT_NS, EXT_REQ, A_req, false)
             end
             reaper.defer(redirect_focus_after_click)
           end
@@ -535,11 +576,11 @@ function progress_and_count_row(ctx, redirect_focus_after_click)
           if PairSquareButton(ctx, B_label, PAIR_MODE == 2, PAIR_W) then
             if PAIR_MODE == 2 then
               PAIR_MODE = 0
-              local back = ({Expert="EXPERT", Hard="HARD", Medium="MEDIUM", Easy="EASY"})[ACTIVE_DIFF]
+              local back = is_pro_keys and "PK_DEFAULT" or ({Expert="EXPERT", Hard="HARD", Medium="MEDIUM", Easy="EASY"})[ACTIVE_DIFF]
               reaper.SetExtState(EXT_NS, EXT_REQ, back, false)
             else
               PAIR_MODE = 2
-              reaper.SetExtState(EXT_NS, EXT_REQ, "TRILLS", false)
+              reaper.SetExtState(EXT_NS, EXT_REQ, B_req, false)
             end
             reaper.defer(redirect_focus_after_click)
           end

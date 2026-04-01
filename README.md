@@ -162,7 +162,7 @@ Comprehensive Practice Section (PRC) event insertion tool:
 | `fcp_tracker_ui_setup.lua` | Setup tab with PRC events tool |
 | `fcp_tracker_focus.lua` | Focus management and driver loop |
 | `fcp_tracker_layout.lua` | FX window tiling and positioning |
-| `fcp_tracker_templates.lua` | Inline FX templates for difficulty switching |
+| `fcp_tracker_chunk_update.lua` | Inline preview FX + note order via chunk updates |
 | `fcp_tracker_chunk_parse.lua` | Track chunk parsing utilities |
 | `fcp_tracker_fxchain_geom.lua` | FX chain geometry handling |
 | `fcp_tracker_util_fs.lua` | File system utilities |

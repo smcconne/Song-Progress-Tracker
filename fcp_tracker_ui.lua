@@ -233,7 +233,7 @@ local function draw_editor_row(ctx, pw, redirect_focus_after_click)
     end
   end
 
-  -- Spectral button (Vocals editor row only)
+  -- Spectral button (Vocals editor row)
   if current_tab == "Vocals" then
     ImGui.ImGui_SameLine(ctx, 0, 4)
     if PairLikeButton(ctx, "btn_spectracular", "Spectral", pw * 1.25, false) then
@@ -250,7 +250,7 @@ local function draw_editor_row(ctx, pw, redirect_focus_after_click)
   -- Pro Keys toggle button (Keys tab editor row)
   if current_tab == "Keys" then
     ImGui.ImGui_SameLine(ctx, 0, 4)
-    if PairLikeButton(ctx, "btn_pro_keys", "Pro", pw, PRO_KEYS_ACTIVE) then
+    if PairLikeButton(ctx, "btn_pro_keys", "Pro", pw * 0.8, PRO_KEYS_ACTIVE) then
       PRO_KEYS_ACTIVE = not PRO_KEYS_ACTIVE
       force_tab_selection("Keys", 3)
       if PRO_KEYS_ACTIVE then
@@ -262,6 +262,7 @@ local function draw_editor_row(ctx, pw, redirect_focus_after_click)
         local trackname = PRO_KEYS_TRACKS[diff_key]
         select_and_scroll_track_by_name(trackname, 40818, 40726)
         compute_pro_keys()
+        reaper.SetExtState(EXT_NS, EXT_REQ, "PK_DEFAULT", false)
       else
         if CMD_SCREENSET_LOAD_OTHERS and CMD_SCREENSET_LOAD_OTHERS > 0 then
           reaper.Main_OnCommand(CMD_SCREENSET_LOAD_OTHERS, 0)
@@ -276,6 +277,18 @@ local function draw_editor_row(ctx, pw, redirect_focus_after_click)
         end
       end
       reaper.defer(redirect_focus_after_click)
+    end
+
+    -- Spectral button (Pro Keys, if Spectracular enabled for this tab)
+    if PRO_KEYS_ACTIVE then
+      local spec_tabs = get_action_tabs("spectracular")
+      if spec_tabs["Pro Keys"] then
+        ImGui.ImGui_SameLine(ctx, 0, 4)
+        if PairLikeButton(ctx, "btn_spectracular_pk", "Spectral", pw * 1.25, false) then
+          start_spectracular()
+          reaper.defer(redirect_focus_after_click)
+        end
+      end
     end
   end
 end

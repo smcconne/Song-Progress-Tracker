@@ -159,6 +159,21 @@ function apply_venue_note_order_and_select(noteLine)
   end
 end
 
+function apply_vocals_note_order(start_note)
+  local trackname = VOCALS_TRACKS[VOCALS_MODE]
+  if not trackname then return end
+  local tr = find_track_by_name(trackname)
+  if not tr then return end
+  local nums = {}
+  for n = start_note, start_note + 18 do nums[#nums+1] = tostring(n) end
+  local noteLine = "  CUSTOM_NOTE_ORDER " .. table.concat(nums, " ")
+  local ok, chunk = reaper.GetTrackStateChunk(tr, "", true)
+  if ok and chunk and chunk ~= "" then
+    chunk = apply_custom_note_order(chunk, noteLine)
+    reaper.SetTrackStateChunk(tr, chunk, false)
+  end
+end
+
 function apply_camera_note_order_and_select(noteLine)
   local n = reaper.CountTracks(0)
   for i = 0, n - 1 do

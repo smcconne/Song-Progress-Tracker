@@ -145,13 +145,20 @@ local function save_test_state(key, state)
   end
 end
 
+local NAMED_ACTION_KEYS = {}
+for _, def in ipairs(ACTION_DEFS) do
+  if def.default_label ~= DEFAULT_ACTION_LABEL then
+    NAMED_ACTION_KEYS[#NAMED_ACTION_KEYS + 1] = def.key
+  end
+end
+
 function prefs_test_pct()
   if not PREFS_TEST_STATE then return 0 end
   local passed = 0
-  for _, key in ipairs(PREFS_ACTION_KEYS) do
+  for _, key in ipairs(NAMED_ACTION_KEYS) do
     if PREFS_TEST_STATE[key] == true then passed = passed + 1 end
   end
-  return math.floor(passed / #PREFS_ACTION_KEYS * 100)
+  return math.floor(passed / #NAMED_ACTION_KEYS * 100)
 end
 
 --------------------------------------------------------------------------------
@@ -377,37 +384,36 @@ function draw_prefs_tab(ctx)
   ImGui.ImGui_SameLine(ctx)
   local x, y = ImGui.ImGui_GetCursorScreenPos(ctx)
   local line_h = ImGui.ImGui_GetTextLineHeightWithSpacing(ctx)
-  ImGui.ImGui_DrawList_AddLine(ImGui.ImGui_GetWindowDrawList(ctx), x, y, x, y + line_h, 0x666666FF)
-  ImGui.ImGui_Dummy(ctx, 1, 0)
-  ImGui.ImGui_SameLine(ctx)
-  ImGui.ImGui_Text(ctx, "5-Lane Previews:")
-  ImGui.ImGui_SameLine(ctx)
   local sel_tab_name = FLOAT_FX_TABS[PREFS_SELECTED_TAB_IDX + 1] or FLOAT_FX_TABS[1]
-  local float_fx_on = get_show_floating_fx(sel_tab_name)
-  local chg_fx, new_fx = ImGui.ImGui_Checkbox(ctx, "All", float_fx_on)
-  if chg_fx then
-    set_show_floating_fx(sel_tab_name, new_fx)
-    if new_fx then set_show_just_fx(sel_tab_name, false) end
-  end
-  local INSTRUMENT_TABS = { Drums=true, Bass=true, Guitar=true, Keys=true, ["Pro Keys"]=true }
-  if INSTRUMENT_TABS[sel_tab_name] then
-    ImGui.ImGui_SameLine(ctx)
-    local just_on = get_show_just_fx(sel_tab_name)
-    local just_label = sel_tab_name:gsub("^Pro ", "")
-    local chg_jt, new_jt = ImGui.ImGui_Checkbox(ctx, "Just " .. just_label, just_on)
-    if chg_jt then
-      set_show_just_fx(sel_tab_name, new_jt)
-      if new_jt then set_show_floating_fx(sel_tab_name, false) end
-    end
-  end
-  ImGui.ImGui_SameLine(ctx)
-  local x, y = ImGui.ImGui_GetCursorScreenPos(ctx)
-  ImGui.ImGui_DrawList_AddLine(ImGui.ImGui_GetWindowDrawList(ctx), x, y, x, y + line_h, 0x666666FF)
-  ImGui.ImGui_Dummy(ctx, 1, 0)
-  ImGui.ImGui_SameLine(ctx)
   local midi_ed_on = get_midi_editor_open(sel_tab_name)
   local chg_me, new_me = ImGui.ImGui_Checkbox(ctx, "MIDI Editor", midi_ed_on)
   if chg_me then set_midi_editor_open(sel_tab_name, new_me) end
+  if sel_tab_name ~= "Setup" then
+    ImGui.ImGui_SameLine(ctx)
+    local x, y = ImGui.ImGui_GetCursorScreenPos(ctx)
+    ImGui.ImGui_DrawList_AddLine(ImGui.ImGui_GetWindowDrawList(ctx), x, y, x, y + line_h, 0x666666FF)
+    ImGui.ImGui_Dummy(ctx, 1, 0)
+    ImGui.ImGui_SameLine(ctx)
+    ImGui.ImGui_Text(ctx, "5-Lane Previews:")
+    ImGui.ImGui_SameLine(ctx)
+    local float_fx_on = get_show_floating_fx(sel_tab_name)
+    local chg_fx, new_fx = ImGui.ImGui_Checkbox(ctx, "All", float_fx_on)
+    if chg_fx then
+      set_show_floating_fx(sel_tab_name, new_fx)
+      if new_fx then set_show_just_fx(sel_tab_name, false) end
+    end
+    local INSTRUMENT_TABS = { Drums=true, Bass=true, Guitar=true, Keys=true, ["Pro Keys"]=true }
+    if INSTRUMENT_TABS[sel_tab_name] then
+      ImGui.ImGui_SameLine(ctx)
+      local just_on = get_show_just_fx(sel_tab_name)
+      local just_label = sel_tab_name:gsub("^Pro ", "")
+      local chg_jt, new_jt = ImGui.ImGui_Checkbox(ctx, "Just " .. just_label, just_on)
+      if chg_jt then
+        set_show_just_fx(sel_tab_name, new_jt)
+        if new_jt then set_show_floating_fx(sel_tab_name, false) end
+      end
+    end
+  end
   ImGui.ImGui_SameLine(ctx)
   ImGui.ImGui_Dummy(ctx, 1, 0)
   if PREFS_CMD_ID_COL_X then

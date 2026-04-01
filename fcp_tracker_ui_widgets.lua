@@ -329,10 +329,11 @@ function DiffSquareButton(ctx, label, diff, is_active, custom_w, force_grey)
 end
 
 -- Pair square button (gray, for Toms/HOPOs/Rolls/Trills)
-function PairSquareButton(ctx, label, is_active, w)
+function PairSquareButton(ctx, label, is_active, w, text_offset_x)
   local bw = w or PAIR_W
   local h  = ImGui.ImGui_GetFrameHeight(ctx)
   local x, y = ImGui.ImGui_GetCursorScreenPos(ctx)
+  local tox = text_offset_x or 0
 
   local base  = is_active and ImGui.ImGui_ColorConvertDouble4ToU32(0.50,0.50,0.50,1)
                          or ImGui.ImGui_ColorConvertDouble4ToU32(0.30,0.30,0.30,1)
@@ -353,7 +354,7 @@ function PairSquareButton(ctx, label, is_active, w)
   ImGui.ImGui_DrawList_AddRect(dl, x, y, x+bw, y+h, lighten_u32(base, 0.05), 4, 0, 1)
 
   local tw, th = ImGui.ImGui_CalcTextSize(ctx, label)
-  ImGui.ImGui_DrawList_AddText(dl, x + (bw - tw)*0.5, y + (h - th)*0.5, COL_TEXT, label)
+  ImGui.ImGui_DrawList_AddText(dl, x + (bw - tw)*0.5 + tox, y + (h - th)*0.5, COL_TEXT, label)
   return clicked
 end
 

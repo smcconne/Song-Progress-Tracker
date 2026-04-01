@@ -58,6 +58,8 @@ function handle_tab_height_switch(ctx, new_tab)
     if CMD_SCREENSET_LOAD_VOCALS and CMD_SCREENSET_LOAD_VOCALS > 0 then
       reaper.Main_OnCommand(CMD_SCREENSET_LOAD_VOCALS, 0)
     end
+    VOCALS_NOTE_START = 48
+    apply_vocals_note_order(VOCALS_NOTE_START)
     CENTER_DELAY_FRAMES = 2
   elseif is_switching_to_ov then
     if CMD_SCREENSET_LOAD_OV and CMD_SCREENSET_LOAD_OV > 0 then
@@ -191,9 +193,9 @@ function tabs_row(ctx, redirect_focus_after_click)
       ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_TabSelected(),ca)
 
       -- Force selection for multiple frames on startup
-      local flags = 0
+      local flags = ImGui.ImGui_TabItemFlags_NoTooltip()
       if force_select_tab == name and force_select_frames > 0 then
-        flags = ImGui.ImGui_TabItemFlags_SetSelected()
+        flags = flags | ImGui.ImGui_TabItemFlags_SetSelected()
       end
       
       -- Display "Pro Keys" instead of "Keys" when Pro Keys is active

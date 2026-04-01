@@ -1,5 +1,5 @@
--- fcp_tracker_templates.lua
--- Inline preview FX + CUSTOM_NOTE_ORDER, no .RTrackTemplate I/O.
+-- fcp_tracker_chunk_update.lua
+-- Inline preview FX + CUSTOM_NOTE_ORDER via direct chunk manipulation.
 
 -- Expected globals from other modules:
 --   TRACKS                 (from fcp_tracker_config.lua)
@@ -321,23 +321,15 @@ local INLINE_TEMPLATES = {
   ----------------------------------------------------------------
   HOPOS = {
     DRUMS = {
-      fxchain = [[
-]],
       custom_note_order = "  CUSTOM_NOTE_ORDER 110 111 112",
     },
     BASS = {
-      fxchain = [[
-]],
       custom_note_order = "  CUSTOM_NOTE_ORDER 89 90 101 102",
     },
     GUITAR = {
-      fxchain = [[
-]],
       custom_note_order = "  CUSTOM_NOTE_ORDER 89 90 101 102",
     },
     KEYS = {
-      fxchain = [[
-]],
       custom_note_order = "  CUSTOM_NOTE_ORDER 89 90 101 102",
     },
   },
@@ -347,24 +339,43 @@ local INLINE_TEMPLATES = {
   ----------------------------------------------------------------
   TRILLS = {
     DRUMS = {
-      fxchain = [[
-]],
       custom_note_order = "  CUSTOM_NOTE_ORDER 126 127 103",
     },
     BASS = {
-      fxchain = [[
-]],
       custom_note_order = "  CUSTOM_NOTE_ORDER 126 127 103",
     },
     GUITAR = {
-      fxchain = [[
-]],
       custom_note_order = "  CUSTOM_NOTE_ORDER 126 127 103",
     },
     KEYS = {
-      fxchain = [[
-]],
       custom_note_order = "  CUSTOM_NOTE_ORDER 126 127 103",
+    },
+  },
+
+  ----------------------------------------------------------------
+  -- Pro Keys Default: note rows 48-72 (FX unchanged).
+  ----------------------------------------------------------------
+  PK_DEFAULT = {
+    KEYS = {
+      custom_note_order = "  CUSTOM_NOTE_ORDER 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72",
+    },
+  },
+
+  ----------------------------------------------------------------
+  -- Pro Keys Range: note rows only (FX unchanged).
+  ----------------------------------------------------------------
+  PK_RANGE = {
+    KEYS = {
+      custom_note_order = "  CUSTOM_NOTE_ORDER 0 2 4 5 7 9",
+    },
+  },
+
+  ----------------------------------------------------------------
+  -- Pro Keys Trill: note rows only (FX unchanged).
+  ----------------------------------------------------------------
+  PK_TRILL = {
+    KEYS = {
+      custom_note_order = "  CUSTOM_NOTE_ORDER 126 127 115",
     },
   },
 }
@@ -380,7 +391,7 @@ for kind, perInst in pairs(INLINE_TEMPLATES) do
   local kindState = PREVIEW_STATE[kind] or {}
   for slotKey, tpl in pairs(perInst) do
     local vstBody, preset = nil, nil
-    if tpl.fxchain and tpl.fxchain ~= "" then
+    if tpl.fxchain and tpl.fxchain:match("%S") then
       vstBody, preset = extract_vst_body_and_preset(tpl.fxchain)
       if not vstBody then
         error(
@@ -409,12 +420,7 @@ local function apply_preview_state_to_track(track, slotKey, kind)
   end
 
   local cfg = kindState[slotKey]
-  if not cfg then
-    error(
-      ("No PREVIEW_STATE defined for kind '%s', slot '%s'")
-      :format(tostring(kind), tostring(slotKey))
-    )
-  end
+  if not cfg then return end
 
   if not track then return end
 
@@ -477,26 +483,39 @@ function run_set(kind)
 
   reaper.PreventUIRefresh(1)
 
-  do
-    local tr = find_track_by_name(TRACKS.DRUMS)
-    select_only(tr)
-    if tr then apply_preview_state_to_track(tr, "DRUMS",  kind) end
+  local keys_only = kind == "PK_DEFAULT" or kind == "PK_RANGE" or kind == "PK_TRILL"
+
+  if not keys_only then
+    do
+      local tr = find_track_by_name(TRACKS.DRUMS)
+      select_only(tr)
+      if tr then apply_preview_state_to_track(tr, "DRUMS",  kind) end
+    end
+
+    do
+      local tr = find_track_by_name(TRACKS.BASS)
+      select_only(tr)
+      if tr then apply_preview_state_to_track(tr, "BASS",   kind) end
+    end
+
+    do
+      local tr = find_track_by_name(TRACKS.GUITAR)
+      select_only(tr)
+      if tr then apply_preview_state_to_track(tr, "GUITAR", kind) end
+    end
   end
 
   do
-    local tr = find_track_by_name(TRACKS.BASS)
-    select_only(tr)
-    if tr then apply_preview_state_to_track(tr, "BASS",   kind) end
-  end
-
-  do
-    local tr = find_track_by_name(TRACKS.GUITAR)
-    select_only(tr)
-    if tr then apply_preview_state_to_track(tr, "GUITAR", kind) end
-  end
-
-  do
-    local tr = find_track_by_name(TRACKS.KEYS)
+    local keys_track_name
+    if keys_only then
+      -- Pro Keys: resolve the actual difficulty track (e.g. PART REAL_KEYS_X)
+      local pk_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
+      local diff_key = pk_map[ACTIVE_DIFF] or "X"
+      keys_track_name = PRO_KEYS_TRACKS[diff_key]
+    else
+      keys_track_name = TRACKS.KEYS
+    end
+    local tr = find_track_by_name(keys_track_name)
     select_only(tr)
     if tr then apply_preview_state_to_track(tr, "KEYS",   kind) end
   end

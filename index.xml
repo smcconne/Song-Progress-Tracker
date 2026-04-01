@@ -40,13 +40,47 @@ Features:\line
 - Overdrive table now highlights the track open in the active MIDI editor, plus minor improvments
 - Added colour-coding for tooltips and condensed some descriptions
 - Switching projects is now more robust, new data is loaded correctly without conflicts]]></changelog>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_main.lua</source>
+        <source file="fcp_tracker_config.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_config.lua</source>
+        <source file="fcp_tracker_chunk_parse.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_chunk_parse.lua</source>
+        <source file="fcp_tracker_focus.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_focus.lua</source>
+        <source file="fcp_tracker_fxchain_geom.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_fxchain_geom.lua</source>
+        <source file="fcp_tracker_layout.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_layout.lua</source>
+        <source file="fcp_tracker_chunk_update.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_chunk_update.lua</source>
+        <source file="fcp_tracker_util_fs.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_util_fs.lua</source>
+        <source file="fcp_tracker_util_selection.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_util_selection.lua</source>
+        <source file="fcp_tracker_model.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_model.lua</source>
+        <source file="fcp_tracker_ui.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui.lua</source>
+        <source file="fcp_tracker_ui_dock.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_dock.lua</source>
+        <source file="fcp_tracker_ui_header.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_header.lua</source>
+        <source file="fcp_tracker_ui_prefs.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_prefs.lua</source>
+        <source file="fcp_tracker_ui_helpers.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_helpers.lua</source>
+        <source file="fcp_tracker_ui_setup.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_setup.lua</source>
+        <source file="fcp_tracker_ui_table.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_table.lua</source>
+        <source file="fcp_tracker_ui_tabs.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_tabs.lua</source>
+        <source file="fcp_tracker_ui_track_utils.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_track_utils.lua</source>
+        <source file="fcp_tracker_ui_widgets.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_tracker_ui_widgets.lua</source>
+        <source file="fcp_jump_regions.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/fcp_jump_regions.lua</source>
+        <source main="main" file="FCP Switch to Easy Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/FCP%20Switch%20to%20Easy%20Difficulty.lua</source>
+        <source main="main" file="FCP Switch to Medium Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/FCP%20Switch%20to%20Medium%20Difficulty.lua</source>
+        <source main="main" file="FCP Switch to Hard Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/FCP%20Switch%20to%20Hard%20Difficulty.lua</source>
+        <source main="main" file="FCP Switch to Expert Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/FCP%20Switch%20to%20Expert%20Difficulty.lua</source>
+      </version>
+      <version name="2.1" author="FinestCardboardPearls">
+        <changelog><![CDATA[- Pro Keys support: default/range/trill presets with dedicated note row management
+- Vocals tab: scrollable note row range via up/down arrow buttons
+- Pair buttons show Range/Trill labels in Pro Keys mode
+- Spectral button available on Keys tab when Pro Keys is active
+- Prefs completion % now excludes unnamed action slots
+- Paint drag clamped to visible scroll area
+- Renamed fcp_tracker_templates to fcp_tracker_chunk_update]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_main.lua</source>
         <source file="fcp_tracker_config.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_config.lua</source>
         <source file="fcp_tracker_chunk_parse.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_chunk_parse.lua</source>
         <source file="fcp_tracker_focus.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_focus.lua</source>
         <source file="fcp_tracker_fxchain_geom.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_fxchain_geom.lua</source>
         <source file="fcp_tracker_layout.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_layout.lua</source>
-        <source file="fcp_tracker_templates.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_templates.lua</source>
+        <source file="fcp_tracker_chunk_update.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_chunk_update.lua</source>
         <source file="fcp_tracker_util_fs.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_util_fs.lua</source>
         <source file="fcp_tracker_util_selection.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_util_selection.lua</source>
         <source file="fcp_tracker_model.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_model.lua</source>
@@ -54,35 +88,30 @@ Features:\line
         <source file="fcp_tracker_ui_dock.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_dock.lua</source>
         <source file="fcp_tracker_ui_header.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_header.lua</source>
         <source file="fcp_tracker_ui_helpers.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_helpers.lua</source>
+        <source file="fcp_tracker_ui_prefs.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_prefs.lua</source>
         <source file="fcp_tracker_ui_setup.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_setup.lua</source>
         <source file="fcp_tracker_ui_table.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_table.lua</source>
         <source file="fcp_tracker_ui_tabs.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_tabs.lua</source>
         <source file="fcp_tracker_ui_track_utils.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_track_utils.lua</source>
         <source file="fcp_tracker_ui_widgets.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_tracker_ui_widgets.lua</source>
         <source file="fcp_jump_regions.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/fcp_jump_regions.lua</source>
-      </version>
-    </reapack>
-    <reapack name="FCP Switch to Easy Difficulty.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Easy%20Difficulty.lua</source>
-      </version>
-    </reapack>
-    <reapack name="FCP Switch to Medium Difficulty.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Medium%20Difficulty.lua</source>
-      </version>
-    </reapack>
-    <reapack name="FCP Switch to Hard Difficulty.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Hard%20Difficulty.lua</source>
-      </version>
-    </reapack>
-    <reapack name="FCP Switch to Expert Difficulty.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Expert%20Difficulty.lua</source>
+        <source main="main" file="FCP Switch to Easy Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Easy%20Difficulty.lua</source>
+        <source main="main" file="FCP Switch to Medium Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Medium%20Difficulty.lua</source>
+        <source main="main" file="FCP Switch to Hard Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Hard%20Difficulty.lua</source>
+        <source main="main" file="FCP Switch to Expert Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Expert%20Difficulty.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Predict Tempo Markers.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Analyzes drum transients and tries adding an increasing number of tempo markers within the time selection.\line
+Compare each guess to baseline using distance to the closest 16th/quarter triplet (post-placement) for error calculation.\line\line
+Features:\line
+- Navigation buttons for transient jumping and selecting time\line
+- Multiple prediction options (1-4 tempo markers)\line
+- Buttons to change BPM +/- 0.1 or time signature (without affecting real-time position of later markers)\line
+}]]></description>
+      </metadata>
       <version name="0.6" author="FinestCardboardPearls">
         <changelog><![CDATA[Predict Tempo Markers
 
@@ -97,42 +126,97 @@ Features:
       </version>
     </reapack>
     <reapack name="FCP Extend selected notes to edit cursor.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Extends the end position of all selected MIDI notes to the current edit cursor position.
+}]]></description>
+      </metadata>
+      <version name="1.0" author="FinestCardboardPearls">
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Extend%20selected%20notes%20to%20edit%20cursor.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Halve bpm.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Halves the BPM of the project.\line\line
+Snapshots the absolute (seconds-based) positions of all media items, MIDI events, and envelope points.\line
+Rebuilds the tempo map at half BPM while preserving time signatures.\line
+All content remains in its original real-time position under the new tempo map.
+}]]></description>
+      <version name="1.0" author="FinestCardboardPearls">
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Halve%20bpm.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Insert note at pitch cursor (highlighted row).lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Inserts a note at the pitch cursor position in the highlighted row.\line
+}]]></description>
+      <version name="1.0" author="FinestCardboardPearls">
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Insert%20note%20at%20pitch%20cursor%20%28highlighted%20row%29.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Move edit cursor left by grid of open midi editor and scrub.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Moves the edit cursor left by the grid size of the open MIDI editor, or by 1/128th note if the active track is PART VOCALS/HARM1/2/3.\line
+If the edit cursor is between grid divisions, it snaps to the following one.\line
+
+Scrubs playback after moving a grid division.\line
+
+RECOMMENDATION: Assign to the left arrow key.\line
+Then tap the left arrow several times until the popup appears.\line
+CAREFUL: Now choose the option to run a {\b New Instance} in the popup.
+}]]></description>
+      </metadata>
+
+      <version name="1.1" author="FinestCardboardPearls">
+        <changelog><![CDATA[- On PART VOCALS/HARM1/2/3, now moves by 1/128th instead of MIDI editor grid]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Move%20edit%20cursor%20left%20by%20grid%20of%20open%20midi%20editor%20and%20scrub.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Move edit cursor right by grid of open midi editor and scrub.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Moves the edit cursor right by the grid size of the open MIDI editor, or by 1/128th note if the active track is PART VOCALS/HARM1/2/3.\line
+If the edit cursor is between grid divisions, it snaps to the following one.\line
+Scrubs playback after moving a grid division.\line
+
+RECOMMENDATION: Assign to the right arrow key.\line
+Then tap the right arrow several times until the popup appears.\line
+CAREFUL: Now choose the option to run a {\b New Instance} in the popup.
+}]]></description>
+      </metadata>      
+      <version name="1.1" author="FinestCardboardPearls">
+        <changelog><![CDATA[- On PART VOCALS/HARM1/2/3, now moves by 1/128th instead of MIDI editor grid]]></changelog>
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Move%20edit%20cursor%20right%20by%20grid%20of%20open%20midi%20editor%20and%20scrub.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Move edit cursor to first selected note.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Moves the edit cursor to the start position of the first selected MIDI note (not based on time selection).
+}]]></description>
+      </metadata>
+      <version name="1.0" author="FinestCardboardPearls">
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Move%20edit%20cursor%20to%20first%20selected%20note.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Print all exposed api functions.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Prints all API functions exposed by the current version of ReaScript, helpful for script development.
+}]]></description>
+      </metadata>
+      <version name="1.0" author="FinestCardboardPearls">
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Print%20all%20exposed%20api%20functions.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Select all notes after edit cursor.lua" type="script">
-      <version name="1.0.0" author="FinestCardboardPearls">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Starting after the edit cursor, selects all notes until the end of the track.
+}]]></description>
+      </metadata>
+      <version name="1.0" author="FinestCardboardPearls">
         <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Select%20all%20notes%20after%20edit%20cursor.lua</source>
       </version>
     </reapack>
@@ -172,7 +256,7 @@ Added features:\line
     <reapack name="FCP Venue Preview Lighting Camera.lua" type="script">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
-Animated sprite previewer for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
+Animated previews for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
 }]]></description>
       </metadata>
       <version name="1.1" author="FinestCardboardPearls">
