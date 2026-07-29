@@ -27,9 +27,8 @@ Features:\line
 - NEW: timer column for tracking how much time you're spending on each section
 }]]></description>
       </metadata>
-      <version name="2.1" author="FinestCardboardPearls">
+      <version name="2.0" author="FinestCardboardPearls">
         <changelog><![CDATA[- Preferences Tab now has 15 user-assignable actions which run when switching to the assigned tab
-- Fixed bug that prevented script from starting when certain tracks were missing
 - Jump Regions is now compactly integrated into the region table instead of being a separate window
 - Timer column added for tracking how much time you're spending on each section
 - Regions marked Complete now revert to In Progress when edited
@@ -67,8 +66,9 @@ Features:\line
         <source main="main" file="FCP Switch to Hard Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/FCP%20Switch%20to%20Hard%20Difficulty.lua</source>
         <source main="main" file="FCP Switch to Expert Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/4074ee06d74173dd754a9591c62066a7041963a2/FCP%20Switch%20to%20Expert%20Difficulty.lua</source>
       </version>
-      <version name="2.1" author="FinestCardboardPearls">
-        <changelog><![CDATA[- Pro Keys support: default/range/trill presets with dedicated note row management
+      <version name="2.2" author="FinestCardboardPearls">
+        <changelog><![CDATA[- Fixed bug that prevented script from starting when certain tracks were missing
+- Pro Keys support: default/range/trill presets with dedicated note row management
 - Vocals tab: scrollable note row range via up/down arrow buttons
 - Pair buttons show Range/Trill labels in Pro Keys mode
 - Spectral button available on Keys tab when Pro Keys is active

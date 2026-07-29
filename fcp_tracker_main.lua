@@ -1,6 +1,6 @@
 -- @description FCP Song Progress Tracker
 -- @author FinestCardboardPearls
--- @version 2.1
+-- @version 2.2
 -- @provides
 --   [nomain] fcp_tracker_config.lua
 --   [nomain] fcp_tracker_chunk_parse.lua
@@ -32,7 +32,7 @@
 -- Rock Band Song Progress Tracker
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
-SCRIPT_VERSION = "2.1"
+SCRIPT_VERSION = "2.2"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
