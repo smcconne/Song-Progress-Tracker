@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FinestCardboardPearls Scripts">
+<index version="2" name="FinestCardboardPearls Scripts">
   <metadata>
     <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
 Scripts for Rock Band 3 song authoring in REAPER.\line\line
@@ -27,8 +27,9 @@ Features:\line
 - NEW: timer column for tracking how much time you're spending on each section
 }]]></description>
       </metadata>
-      <version name="2.0" author="FinestCardboardPearls">
+      <version name="2.1" author="FinestCardboardPearls">
         <changelog><![CDATA[- Preferences Tab now has 15 user-assignable actions which run when switching to the assigned tab
+- Fixed bug that prevented script from starting when certain tracks were missing
 - Jump Regions is now compactly integrated into the region table instead of being a separate window
 - Timer column added for tracking how much time you're spending on each section
 - Regions marked Complete now revert to In Progress when edited
@@ -101,6 +102,190 @@ Features:\line
         <source main="main" file="FCP Switch to Expert Difficulty.lua">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Switch%20to%20Expert%20Difficulty.lua</source>
       </version>
     </reapack>
+  </category>
+  <category name="Venue Preview">
+    <reapack name="FCP Venue Preview Lighting Camera.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Animated previews for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
+}]]></description>
+      </metadata>
+      <version name="1.2" author="FinestCardboardPearls">
+        <changelog><![CDATA[- Fixed post-processing transitions so the new effect fades in while the old effect fades out
+- Absolute positioning so the top video stays centered horizontally regardless of window size
+- Default window dimensions adjusted to fit content]]></changelog>
+        <source main="main">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/FCP%20Venue%20Preview%20Lighting%20Camera.lua</source>
+        <!-- Camera spritesheets -->
+        <source file="Spritesheets/Camera/AllBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/AllBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/AllFar_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/AllFar_spritesheet.png</source>
+        <source file="Spritesheets/Camera/AllNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/AllNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BDNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BDNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BGBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BGBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BGNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BGNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BHand_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BHand_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BHead_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BHead_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BKBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BKBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BKNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BKNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BVBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BVBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/BVNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/BVNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DAllCam_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DAllCam_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DAllLT_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DAllLT_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DAllYeah_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DAllYeah_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DAll_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DAll_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DBassCam_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DBassCam_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DBassCLS_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DBassCLS_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DBassNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DBassNP_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DBass_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DBass_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DBRE_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DBRE_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DCrowdBass_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DCrowdBass_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DCrowdGtr_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DCrowdGtr_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DCrowdsurf_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DCrowdsurf_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DCrowd_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DCrowd_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDrumsKD_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDrumsKD_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDrumsLT_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDrumsLT_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDrumsNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDrumsNP_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDrumsPoint_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDrumsPoint_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDrums_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDrums_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDuoBass_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDuoBass_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDuoDrums_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDuoDrums_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDuoGB_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDuoGB_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDuoGtr_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDuoGtr_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDuoKB_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDuoKB_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDuoKG_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDuoKG_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DDuoKV_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DDuoKV_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DGNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DGNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DGtrCamPR_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DGtrCamPR_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DGtrCamPT_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DGtrCamPT_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DGtrCls_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DGtrCls_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DGtrNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DGtrNP_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DGtr_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DGtr_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DHand_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DHand_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DHead_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DHead_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DKeysCam_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DKeysCam_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DKeysNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DKeysNP_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DKeys_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DKeys_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DStagedive_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DStagedive_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DVNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DVNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DVocals_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DVocals_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DVoxCamPR_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DVoxCamPR_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DVoxCamPT_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DVoxCamPT_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DVoxCLS_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DVoxCLS_spritesheet.png</source>
+        <source file="Spritesheets/Camera/DVoxNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/DVoxNP_spritesheet.png</source>
+        <source file="Spritesheets/Camera/FrontBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/FrontBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/FrontNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/FrontNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/GBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/GBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/GHand_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/GHand_spritesheet.png</source>
+        <source file="Spritesheets/Camera/GHead_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/GHead_spritesheet.png</source>
+        <source file="Spritesheets/Camera/GKBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/GKBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/GKNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/GKNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/GNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/GNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/GVBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/GVBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/GVNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/GVNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/KBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/KBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/KHand_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/KHand_spritesheet.png</source>
+        <source file="Spritesheets/Camera/KHead_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/KHead_spritesheet.png</source>
+        <source file="Spritesheets/Camera/KNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/KNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/KVBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/KVBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/KVNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/KVNear_spritesheet.png</source>
+        <source file="Spritesheets/Camera/VBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/VBehind_spritesheet.png</source>
+        <source file="Spritesheets/Camera/VCloseup_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/VCloseup_spritesheet.png</source>
+        <source file="Spritesheets/Camera/VNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Camera/VNear_spritesheet.png</source>
+        <!-- Lighting spritesheets -->
+        <source file="Spritesheets/Lighting/BlackoutFast_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/BlackoutFast_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/BlackoutSlow_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/BlackoutSlow_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/BlackoutSpot_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/BlackoutSpot_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Bonusfx_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Bonusfx_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Bre_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Bre_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Chorus_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Chorus_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Dischord_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Dischord_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/FlareFast_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/FlareFast_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/FlareSlow_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/FlareSlow_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Frenzy_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Frenzy_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Harmony_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Harmony_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/LoopCool_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/LoopCool_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/LoopWarm_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/LoopWarm_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/ManualCool_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/ManualCool_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/ManualWarm_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/ManualWarm_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Searchlights_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Searchlights_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/SilhouettesSpot_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/SilhouettesSpot_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Silhouettes_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Silhouettes_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Stomp_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Stomp_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/StrobeFast_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/StrobeFast_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/StrobeSlow_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/StrobeSlow_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Sweep_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Sweep_spritesheet.png</source>
+        <source file="Spritesheets/Lighting/Verse_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/Lighting/Verse_spritesheet.png</source>
+        <!-- PostProc spritesheets -->
+        <source file="Spritesheets/PostProc/16mmFilm_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/16mmFilm_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/Bloom_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/Bloom_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/BlueFilter_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/BlueFilter_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/Bright_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/Bright_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/CleanTrails_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/CleanTrails_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/ColorMuted_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/ColorMuted_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/ContrastBW_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/ContrastBW_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/DesatBlue_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/DesatBlue_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/DesatPosterize_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/DesatPosterize_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/FilmBW_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/FilmBW_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/FilmContrastBlue_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/FilmContrastBlue_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/FilmContrastGreen_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/FilmContrastGreen_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/FilmContrastRed_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/FilmContrastRed_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/FilmContrast_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/FilmContrast_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/FlickerTrails_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/FlickerTrails_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/HorrorMovie_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/HorrorMovie_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/Mirror_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/Mirror_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/Photocopy_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/Photocopy_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/PhotoNegative_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/PhotoNegative_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/Posterize_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/Posterize_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/ProFilmA_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/ProFilmA_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/PsychBlueRed_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/PsychBlueRed_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/SepiaInk_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/SepiaInk_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/ShittyTV_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/ShittyTV_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/Silvertone_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/Silvertone_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/SpaceWoosh_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/SpaceWoosh_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/VideoBW_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/VideoBW_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/VideoGrainy_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/VideoGrainy_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/VideoSecurity_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/VideoSecurity_spritesheet.png</source>
+        <source file="Spritesheets/PostProc/VideoTrails_spritesheet.png">https://raw.githubusercontent.com/smcconne/RB3-Venue-Preview/main/Spritesheets/PostProc/VideoTrails_spritesheet.png</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Misc Rock Band Charting Scripts">
+    <reapack name="FCP Spectracular Patcher.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Patches talagan's Spectracular with helpful vocals charting functionality.\line\line
+Added features:\line
+- Ctrl or Alt + scroll to zoom vertically or horizontally by small amounts\line
+- Shift + scroll to pan horizontally\line
+- Click to both place edit cursor and set the active note row; after mouse-off, focus is directed to the active MIDI editor\line
+- Double click to place a note (fills approximate width or falls back to a 128th note)\line
+- Shows MIDI notes on spectrogram (displays lyric events if present); notes are selectable and resizable on the spectrogram\line
+- Right click to put edit cursor at 1/3 of view (hold to follow)\line
+- Reasonable default horizontal / vertical zoom
+}]]></description>
+      </metadata>
+      <version name="3.2" author="FinestCardboardPearls">
+        <changelog><![CDATA[- Scrub is now triggered while dragging note edges
+- MIDI Lock added so notes aren't editable while active
+]]></changelog>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Spectracular%20Patcher.lua</source>
+      </version>
+    </reapack>
+    <reapack name="FCP Lyrics Clipboard create and align lyric events to notes in each region.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Automatically aligns lyric events to notes in each region.
+}]]></description>
+      </metadata>
+      <version name="2.21" author="FinestCardboardPearls">
+        <changelog><![CDATA[- When grabbing lyric events from existing notes it now uses the currently selected track, not the first selected
+- Added a guard so Apply can't be toggled ON (and auto-turns OFF) if a non-vocals track gets selected]]></changelog>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Lyrics%20Clipboard%20create%20and%20align%20lyric%20events%20to%20notes%20in%20each%20region.lua</source>
+      </version>
+    </reapack>
     <reapack name="FCP Predict Tempo Markers.lua" type="script">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
@@ -112,7 +297,7 @@ Features:\line
 - Buttons to change BPM +/- 0.1 or time signature (without affecting real-time position of later markers)\line
 }]]></description>
       </metadata>
-      <version name="0.6" author="FinestCardboardPearls">
+      <version name="0.7" author="FinestCardboardPearls">
         <changelog><![CDATA[Predict Tempo Markers
 
 Features:
@@ -122,17 +307,7 @@ Features:
 - Time signature detection and configuration
 - Navigation buttons for transient jumping and time selection
 ]]></changelog>
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Predict%20Tempo%20Markers.lua</source>
-      </version>
-    </reapack>
-    <reapack name="FCP Extend selected notes to edit cursor.lua" type="script">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
-Extends the end position of all selected MIDI notes to the current edit cursor position.
-}]]></description>
-      </metadata>
-      <version name="1.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Extend%20selected%20notes%20to%20edit%20cursor.lua</source>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Predict%20Tempo%20Markers.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Halve bpm.lua" type="script">
@@ -142,16 +317,26 @@ Snapshots the absolute (seconds-based) positions of all media items, MIDI events
 Rebuilds the tempo map at half BPM while preserving time signatures.\line
 All content remains in its original real-time position under the new tempo map.
 }]]></description>
-      <version name="1.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Halve%20bpm.lua</source>
+      <version name="1.1" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Halve%20bpm.lua</source>
+      </version>
+    </reapack>
+    <reapack name="FCP Extend selected notes to edit cursor.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
+Extends the end position of all selected MIDI notes to the current edit cursor position.
+}]]></description>
+      </metadata>
+      <version name="1.1" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Extend%20selected%20notes%20to%20edit%20cursor.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Insert note at pitch cursor (highlighted row).lua" type="script">
       <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
 Inserts a note at the pitch cursor position in the highlighted row.\line
 }]]></description>
-      <version name="1.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Insert%20note%20at%20pitch%20cursor%20%28highlighted%20row%29.lua</source>
+      <version name="1.1" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Insert%20note%20at%20pitch%20cursor%20%28highlighted%20row%29.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Move edit cursor left by grid of open midi editor and scrub.lua" type="script">
@@ -168,9 +353,9 @@ CAREFUL: Now choose the option to run a {\b New Instance} in the popup.
 }]]></description>
       </metadata>
 
-      <version name="1.1" author="FinestCardboardPearls">
+      <version name="1.2" author="FinestCardboardPearls">
         <changelog><![CDATA[- On PART VOCALS/HARM1/2/3, now moves by 1/128th instead of MIDI editor grid]]></changelog>
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Move%20edit%20cursor%20left%20by%20grid%20of%20open%20midi%20editor%20and%20scrub.lua</source>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Move%20edit%20cursor%20left%20by%20grid%20of%20open%20midi%20editor%20and%20scrub.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Move edit cursor right by grid of open midi editor and scrub.lua" type="script">
@@ -185,9 +370,9 @@ Then tap the right arrow several times until the popup appears.\line
 CAREFUL: Now choose the option to run a {\b New Instance} in the popup.
 }]]></description>
       </metadata>      
-      <version name="1.1" author="FinestCardboardPearls">
+      <version name="1.2" author="FinestCardboardPearls">
         <changelog><![CDATA[- On PART VOCALS/HARM1/2/3, now moves by 1/128th instead of MIDI editor grid]]></changelog>
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Move%20edit%20cursor%20right%20by%20grid%20of%20open%20midi%20editor%20and%20scrub.lua</source>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Move%20edit%20cursor%20right%20by%20grid%20of%20open%20midi%20editor%20and%20scrub.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Move edit cursor to first selected note.lua" type="script">
@@ -196,18 +381,8 @@ CAREFUL: Now choose the option to run a {\b New Instance} in the popup.
 Moves the edit cursor to the start position of the first selected MIDI note (not based on time selection).
 }]]></description>
       </metadata>
-      <version name="1.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Move%20edit%20cursor%20to%20first%20selected%20note.lua</source>
-      </version>
-    </reapack>
-    <reapack name="FCP Print all exposed api functions.lua" type="script">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
-Prints all API functions exposed by the current version of ReaScript, helpful for script development.
-}]]></description>
-      </metadata>
-      <version name="1.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Print%20all%20exposed%20api%20functions.lua</source>
+      <version name="1.1" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Move%20edit%20cursor%20to%20first%20selected%20note.lua</source>
       </version>
     </reapack>
     <reapack name="FCP Select all notes after edit cursor.lua" type="script">
@@ -216,188 +391,18 @@ Prints all API functions exposed by the current version of ReaScript, helpful fo
 Starting after the edit cursor, selects all notes until the end of the track.
 }]]></description>
       </metadata>
-      <version name="1.0" author="FinestCardboardPearls">
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Select%20all%20notes%20after%20edit%20cursor.lua</source>
+      <version name="1.1" author="FinestCardboardPearls">
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Select%20all%20notes%20after%20edit%20cursor.lua</source>
       </version>
     </reapack>
-    <reapack name="FCP Lyrics Clipboard create and align lyric events to notes in each region.lua" type="script">
+    <reapack name="FCP Print all exposed api functions.lua" type="script">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
-Automatically aligns lyric events to notes in each region.
-}]]></description>
-      </metadata>
-      <version name="2.20" author="FinestCardboardPearls">
-        <changelog><![CDATA[- When grabbing lyric events from existing notes it now uses the currently selected track, not the first selected
-- Added a guard so Apply can't be toggled ON (and auto-turns OFF) if a non-vocals track gets selected]]></changelog>
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Lyrics%20Clipboard%20create%20and%20align%20lyric%20events%20to%20notes%20in%20each%20region.lua</source>
-      </version>
-    </reapack>
-    <reapack name="FCP Spectracular Patcher.lua" type="script">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
-Patches talagan's Spectracular with helpful vocals charting functionality.\line\line
-Added features:\line
-- Ctrl or Alt + scroll to zoom vertically or horizontally by small amounts\line
-- Shift + scroll to pan horizontally\line
-- Click to both place edit cursor and set the active note row; after mouse-off, focus is directed to the active MIDI editor\line
-- Double click to place a note (fills approximate width or falls back to a 128th note)\line
-- Shows MIDI notes on spectrogram (displays lyric events if present); notes are selectable and resizable on the spectrogram\line
-- Right click to put edit cursor at 1/3 of view (hold to follow)\line
-- Reasonable default horizontal / vertical zoom
-}]]></description>
-      </metadata>
-      <version name="3.1" author="FinestCardboardPearls">
-        <changelog><![CDATA[- Scrub is now triggered while dragging note edges
-- MIDI Lock added so notes aren't editable while active
-]]></changelog>
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Spectracular%20Patcher.lua</source>
-      </version>
-    </reapack>
-    <reapack name="FCP Venue Preview Lighting Camera.lua" type="script">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Helvetica;}}\f0\pard
-Animated previews for Rock Band 3 venue camera cuts, lighting cues, and post-processing effects.
+Prints all API functions exposed by the current version of ReaScript, helpful for script development.
 }]]></description>
       </metadata>
       <version name="1.1" author="FinestCardboardPearls">
-        <changelog><![CDATA[- Fixed post-processing transitions so the new effect fades in while the old effect fades out
-- Absolute positioning so the top video stays centered horizontally regardless of window size
-- Default window dimensions adjusted to fit content]]></changelog>
-        <source main="main">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/FCP%20Venue%20Preview%20Lighting%20Camera.lua</source>
-        <!-- Camera spritesheets -->
-        <source file="Spritesheets/Camera/AllBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/AllBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/AllFar_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/AllFar_spritesheet.png</source>
-        <source file="Spritesheets/Camera/AllNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/AllNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BDNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BDNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BGBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BGBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BGNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BGNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BHand_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BHand_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BHead_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BHead_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BKBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BKBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BKNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BKNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BVBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BVBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/BVNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/BVNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DAllCam_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DAllCam_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DAllLT_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DAllLT_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DAllYeah_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DAllYeah_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DAll_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DAll_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DBassCam_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DBassCam_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DBassCLS_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DBassCLS_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DBassNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DBassNP_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DBass_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DBass_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DBRE_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DBRE_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DCrowdBass_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DCrowdBass_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DCrowdGtr_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DCrowdGtr_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DCrowdsurf_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DCrowdsurf_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DCrowd_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DCrowd_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDrumsKD_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDrumsKD_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDrumsLT_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDrumsLT_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDrumsNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDrumsNP_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDrumsPoint_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDrumsPoint_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDrums_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDrums_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDuoBass_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDuoBass_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDuoDrums_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDuoDrums_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDuoGB_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDuoGB_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDuoGtr_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDuoGtr_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDuoKB_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDuoKB_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDuoKG_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDuoKG_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DDuoKV_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DDuoKV_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DGNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DGNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DGtrCamPR_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DGtrCamPR_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DGtrCamPT_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DGtrCamPT_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DGtrCls_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DGtrCls_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DGtrNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DGtrNP_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DGtr_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DGtr_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DHand_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DHand_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DHead_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DHead_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DKeysCam_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DKeysCam_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DKeysNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DKeysNP_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DKeys_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DKeys_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DStagedive_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DStagedive_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DVNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DVNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DVocals_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DVocals_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DVoxCamPR_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DVoxCamPR_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DVoxCamPT_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DVoxCamPT_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DVoxCLS_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DVoxCLS_spritesheet.png</source>
-        <source file="Spritesheets/Camera/DVoxNP_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/DVoxNP_spritesheet.png</source>
-        <source file="Spritesheets/Camera/FrontBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/FrontBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/FrontNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/FrontNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/GBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/GBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/GHand_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/GHand_spritesheet.png</source>
-        <source file="Spritesheets/Camera/GHead_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/GHead_spritesheet.png</source>
-        <source file="Spritesheets/Camera/GKBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/GKBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/GKNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/GKNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/GNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/GNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/GVBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/GVBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/GVNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/GVNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/KBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/KBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/KHand_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/KHand_spritesheet.png</source>
-        <source file="Spritesheets/Camera/KHead_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/KHead_spritesheet.png</source>
-        <source file="Spritesheets/Camera/KNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/KNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/KVBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/KVBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/KVNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/KVNear_spritesheet.png</source>
-        <source file="Spritesheets/Camera/VBehind_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/VBehind_spritesheet.png</source>
-        <source file="Spritesheets/Camera/VCloseup_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/VCloseup_spritesheet.png</source>
-        <source file="Spritesheets/Camera/VNear_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Camera/VNear_spritesheet.png</source>
-        <!-- Lighting spritesheets -->
-        <source file="Spritesheets/Lighting/BlackoutFast_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/BlackoutFast_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/BlackoutSlow_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/BlackoutSlow_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/BlackoutSpot_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/BlackoutSpot_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Bonusfx_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Bonusfx_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Bre_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Bre_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Chorus_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Chorus_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Dischord_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Dischord_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/FlareFast_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/FlareFast_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/FlareSlow_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/FlareSlow_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Frenzy_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Frenzy_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Harmony_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Harmony_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/LoopCool_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/LoopCool_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/LoopWarm_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/LoopWarm_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/ManualCool_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/ManualCool_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/ManualWarm_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/ManualWarm_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Searchlights_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Searchlights_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/SilhouettesSpot_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/SilhouettesSpot_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Silhouettes_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Silhouettes_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Stomp_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Stomp_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/StrobeFast_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/StrobeFast_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/StrobeSlow_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/StrobeSlow_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Sweep_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Sweep_spritesheet.png</source>
-        <source file="Spritesheets/Lighting/Verse_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/Lighting/Verse_spritesheet.png</source>
-        <!-- PostProc spritesheets -->
-        <source file="Spritesheets/PostProc/16mmFilm_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/16mmFilm_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/Bloom_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/Bloom_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/BlueFilter_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/BlueFilter_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/Bright_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/Bright_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/CleanTrails_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/CleanTrails_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/ColorMuted_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/ColorMuted_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/ContrastBW_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/ContrastBW_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/DesatBlue_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/DesatBlue_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/DesatPosterize_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/DesatPosterize_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/FilmBW_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/FilmBW_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/FilmContrastBlue_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/FilmContrastBlue_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/FilmContrastGreen_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/FilmContrastGreen_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/FilmContrastRed_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/FilmContrastRed_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/FilmContrast_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/FilmContrast_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/FlickerTrails_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/FlickerTrails_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/HorrorMovie_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/HorrorMovie_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/Mirror_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/Mirror_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/Photocopy_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/Photocopy_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/PhotoNegative_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/PhotoNegative_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/Posterize_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/Posterize_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/ProFilmA_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/ProFilmA_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/PsychBlueRed_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/PsychBlueRed_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/SepiaInk_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/SepiaInk_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/ShittyTV_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/ShittyTV_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/Silvertone_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/Silvertone_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/SpaceWoosh_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/SpaceWoosh_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/VideoBW_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/VideoBW_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/VideoGrainy_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/VideoGrainy_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/VideoSecurity_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/VideoSecurity_spritesheet.png</source>
-        <source file="Spritesheets/PostProc/VideoTrails_spritesheet.png">https://raw.githubusercontent.com/smcconne/Song-Progress-Tracker/main/Spritesheets/PostProc/VideoTrails_spritesheet.png</source>
+        <source main="main">https://raw.githubusercontent.com/smcconne/Misc-RB-Reaper-Scripts/main/FCP%20Print%20all%20exposed%20api%20functions.lua</source>
       </version>
     </reapack>
   </category>

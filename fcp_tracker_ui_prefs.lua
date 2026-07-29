@@ -211,6 +211,7 @@ function set_midi_editor_open(tab, on)
 end
 
 function get_show_floating_fx(tab)
+  if not tab then return false end
   local key = tab
   local val = reaper.GetExtState(EXT_NS, "SHOW_FLOAT_FX_" .. key)
   if val == "1" then return true end
