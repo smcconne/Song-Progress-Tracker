@@ -4,8 +4,8 @@
 local reaper = reaper
 local ImGui  = reaper
 
--- Requires globals from fcp_tracker_ui_helpers.lua: pct_scaled_u32, lighten_u32, COL_TEXT
--- Requires globals from fcp_tracker_config.lua: BTN_W
+-- Requires globals from helpers (pct_scaled_u32, lighten_u32, COL_TEXT),
+-- config (BTN_W), and tooltips (draw_diff_tooltip).
 
 -- Computed locally, depends on BTN_W from config
 local PAIR_W = math.floor(BTN_W * 1.6 + 0.5)
@@ -103,14 +103,15 @@ local DIFF_TOOLTIPS = {
 
 -- Get tooltip for current tab and difficulty
 local function get_diff_tooltip(diff)
+  local cur_obj = current_tab_obj and current_tab_obj() or nil
   local category
-  if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+  if cur_obj and cur_obj.name == "Keys" and cur_obj:is_pro() then
     category = "ProKeys"
-  elseif current_tab == "Keys" then
+  elseif cur_obj and cur_obj.name == "Keys" then
     category = "Keys"
-  elseif current_tab == "Drums" then
+  elseif cur_obj and cur_obj.name == "Drums" then
     category = "Drums"
-  elseif current_tab == "Guitar" or current_tab == "Bass" then
+  elseif cur_obj and (cur_obj.name == "Guitar" or cur_obj.name == "Bass") then
     category = "GuitarBass"
   else
     return nil
@@ -231,16 +232,10 @@ local function render_colored_text(ctx, text)
   ImGui.ImGui_Dummy(ctx, avail_w, cy - sy)
 end
 
--- Difficulty square button (colored by progress percentage)
--- force_grey: if true, uses grey color instead of progress-based color
+-- Difficulty square button (colored by progress pct; grey when force_grey).
 function DiffSquareButton(ctx, label, diff, is_active, custom_w, force_grey)
-  -- For Pro Keys mode, pass the correct format to diff_pct
-  local pct_diff = diff
-  if current_tab == "Keys" and PRO_KEYS_ACTIVE then
-    local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
-    pct_diff = "Pro " .. (diff_map[diff] or "X")
-  end
-  local pct = diff_pct(current_tab, pct_diff)
+  local cur_obj = current_tab_obj and current_tab_obj() or nil
+  local pct = diff_pct(current_tab, diff)
   
   local base, hover, held, border_col
   if force_grey then
@@ -272,46 +267,24 @@ function DiffSquareButton(ctx, label, diff, is_active, custom_w, force_grey)
   if hovered then
     local tooltip = get_diff_tooltip(diff)
     if tooltip then
-      local tooltip_w = 194  -- Fixed width for wrapping
-      
-      -- Position: below the button, left edge at window left edge
-      local win_x, _ = ImGui.ImGui_GetWindowPos(ctx)
-      local btn_bottom = y + h  -- y is button top, h is button height
-      
-      ImGui.ImGui_SetNextWindowPos(ctx, win_x, btn_bottom + 5)
-      ImGui.ImGui_SetNextWindowSize(ctx, tooltip_w, 0)  -- 0 height = auto
-      
-      ImGui.ImGui_BeginTooltip(ctx)
-      
       -- Build header: "Expert Keys" or "Expert Pro Keys"
       local instrument_name = current_tab
-      if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+      if cur_obj and cur_obj.name == "Keys" and cur_obj:is_pro() then
         instrument_name = "Pro Keys"
       end
       local header_text = diff .. " " .. instrument_name
-      local pct_text = tostring(pct) .. "%"
-      
-      -- Left-aligned header
-      ImGui.ImGui_Text(ctx, header_text)
-      
-      -- Right-aligned percentage on same line, colored by percentage
-      ImGui.ImGui_SameLine(ctx)
-      local avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
-      local pct_w = ImGui.ImGui_CalcTextSize(ctx, pct_text)
-      ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w - pct_w)
-      
-      local pct_col = pct_scaled_u32(pct, 1.0, 1.0)
-      ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), pct_col)
-      ImGui.ImGui_Text(ctx, pct_text)
-      ImGui.ImGui_PopStyleColor(ctx)
-      
-      -- Separator and advice text
-      ImGui.ImGui_Separator(ctx)
-      ImGui.ImGui_PushTextWrapPos(ctx, tooltip_w - 10)
-      render_colored_text(ctx, tooltip)
-      ImGui.ImGui_PopTextWrapPos(ctx)
-      
-      ImGui.ImGui_EndTooltip(ctx)
+      local btn_bottom = y + h  -- y is button top, h is button height
+      draw_diff_tooltip(ctx, {
+        item_bottom_y = btn_bottom,
+        key           = "diff:" .. diff,
+        header        = header_text,
+        pct           = pct,
+      }, function(c)
+        ImGui.ImGui_Separator(c)
+        ImGui.ImGui_PushTextWrapPos(c, 184)
+        render_colored_text(c, tooltip)
+        ImGui.ImGui_PopTextWrapPos(c)
+      end)
     end
   end
 
@@ -385,45 +358,13 @@ function PairLikeButton(ctx, id, label, w, is_active)
   return clicked
 end
 
--- Global drag state for Listen button volume control
-LISTEN_DRAG_STATE = LISTEN_DRAG_STATE or {
-  dragging = false,
-  start_y = 0,
-  start_vol = 0,
-}
-
--- Global flag to suppress paint-toggle while Listen button is being dragged
+-- Kept global so the `not LISTEN_DRAG_ACTIVE` guard elsewhere still resolves.
 LISTEN_DRAG_ACTIVE = false
 
--- dB range for Listen button handle
-local LISTEN_DB_MIN = -40   -- bottom of range (treat as -inf)
-local LISTEN_DB_MAX = -12   -- top of range
-local LISTEN_DB_RANGE = LISTEN_DB_MAX - LISTEN_DB_MIN  -- 88
-
--- Convert ReaSynth linear volume to visual position (0-1)
-local function vol_to_pos(vol)
-  if not vol or vol <= 0 then return 0 end
-  local db = 20 * math.log(vol, 10)
-  if db <= LISTEN_DB_MIN then return 0 end
-  if db >= LISTEN_DB_MAX then return 1 end
-  return (db - LISTEN_DB_MIN) / LISTEN_DB_RANGE
-end
-
--- Convert visual position (0-1) to ReaSynth linear volume
-local function pos_to_vol(pos)
-  if pos <= 0 then return 0 end
-  if pos >= 1 then return 10 ^ (LISTEN_DB_MAX / 20) end
-  local db = LISTEN_DB_MIN + pos * LISTEN_DB_RANGE
-  return 10 ^ (db / 20)
-end
-
--- Listen button with volume drag control and visual indicator
--- Returns: clicked (boolean), volume_changed (boolean)
-function ListenButtonWithVolume(ctx, id, label, w, is_active, volume, trackname)
+-- Listen button (toggle-only; volume bar lives on the per-track icons).
+function ListenButtonWithVolume(ctx, id, label, w, is_active)
   local base_active   = ImGui.ImGui_ColorConvertDouble4ToU32(0.50, 0.50, 0.50, 1.0)
   local base_inactive = ImGui.ImGui_ColorConvertDouble4ToU32(0.22, 0.22, 0.22, 1.0)
-  local dark_overlay  = ImGui.ImGui_ColorConvertDouble4ToU32(0.0, 0.0, 0.0, 0.4)  -- Darken below line
-  local vol_line_col  = ImGui.ImGui_ColorConvertDouble4ToU32(1.0, 1.0, 1.0, 0.8)  -- Volume indicator line
 
   local h = ImGui.ImGui_GetFrameHeight(ctx)
   local x, y = ImGui.ImGui_GetCursorScreenPos(ctx)
@@ -431,70 +372,16 @@ function ListenButtonWithVolume(ctx, id, label, w, is_active, volume, trackname)
   ImGui.ImGui_InvisibleButton(ctx, id, w, h)
   local hovered = ImGui.ImGui_IsItemHovered(ctx)
   local held    = ImGui.ImGui_IsItemActive(ctx)
-  local clicked = false
-  local volume_changed = false
-  
-  -- Handle drag for volume control
-  local _, mouse_y = ImGui.ImGui_GetMousePos(ctx)
-  
-  if held then
-    if not LISTEN_DRAG_STATE.dragging then
-      -- Start dragging
-      LISTEN_DRAG_STATE.dragging = true
-      LISTEN_DRAG_ACTIVE = true  -- Suppress paint-toggle globally
-      LISTEN_DRAG_STATE.start_y = mouse_y
-      -- Store starting position (not volume) for smoother dragging
-      LISTEN_DRAG_STATE.start_pos = vol_to_pos(volume or 0)
-    else
-      -- Continue dragging - calculate position change, then convert to volume
-      local delta_y = LISTEN_DRAG_STATE.start_y - mouse_y  -- Positive = drag up = increase
-      local sensitivity = 0.01  -- Position change per pixel
-      local new_pos = LISTEN_DRAG_STATE.start_pos + (delta_y * sensitivity)
-      new_pos = math.max(0.0, math.min(1.0, new_pos))
-      local new_vol = pos_to_vol(new_pos)
-      
-      if trackname and math.abs(new_vol - (volume or 0)) > 0.001 then
-        set_reasynth_volume(trackname, new_vol)
-        volume_changed = true
-      end
-    end
-  else
-    if LISTEN_DRAG_STATE.dragging then
-      -- Just released
-      local delta_y = math.abs(mouse_y - LISTEN_DRAG_STATE.start_y)
-      if delta_y < 3 then
-        -- Small movement = click
-        clicked = true
-      end
-      LISTEN_DRAG_STATE.dragging = false
-      LISTEN_DRAG_ACTIVE = false  -- Re-enable paint-toggle
-    end
-  end
+  local clicked = ImGui.ImGui_IsItemClicked(ctx)
 
-  -- Draw button background
+  -- Lighten the fill on hover/hold for visual feedback.
   local fill = is_active and base_active or base_inactive
   if hovered then fill = lighten_u32(fill, 0.20) end
   if held    then fill = lighten_u32(fill, 0.10) end
 
   local dl = ImGui.ImGui_GetWindowDrawList(ctx)
   ImGui.ImGui_DrawList_AddRectFilled(dl, x, y, x+w, y+h, fill, 4)
-  
-  -- Draw volume indicator (darker portion above the volume line = unfilled)
-  -- Use curved position for visual display
-  local vol = volume or 0
-  local vol_pos = vol_to_pos(vol)  -- Convert to visual position
-  local vol_y = y + h * (1.0 - vol_pos)  -- Volume line position (bottom = full volume)
-  
-  -- Dark overlay above volume line (unfilled portion)
-  if vol_pos < 1.0 then
-    ImGui.ImGui_DrawList_AddRectFilled(dl, x, y, x+w, vol_y, dark_overlay, 4)
-  end
-  
-  -- Volume indicator line
-  if vol_pos > 0.0 then
-    ImGui.ImGui_DrawList_AddLine(dl, x+2, vol_y, x+w-2, vol_y, vol_line_col, 2)
-  end
-  
+
   -- Border
   ImGui.ImGui_DrawList_AddRect(dl, x, y, x+w, y+h, lighten_u32(fill, 0.05), 4, 0, 1)
 
@@ -502,5 +389,5 @@ function ListenButtonWithVolume(ctx, id, label, w, is_active, volume, trackname)
   local tw, th = ImGui.ImGui_CalcTextSize(ctx, label)
   ImGui.ImGui_DrawList_AddText(dl, x + (w - tw)*0.5, y + (h - th)*0.5, COL_TEXT, label)
 
-  return clicked, volume_changed
+  return clicked, false
 end

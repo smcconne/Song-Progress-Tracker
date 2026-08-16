@@ -107,6 +107,7 @@ function slot_xy(slotKey, x0,y0,w,h)
 end
 
 
+-- Nudge-resize the floater (grow, settle, shrink, settle) to force a redraw
 function nudge_resize_track_keep_xy(tr, w, h, cb_done)
   if not tr or not w or not h then if cb_done then cb_done() end; return end
   local _,_,_,fx = get_fxchain_and_span(tr); if not fx then if cb_done then cb_done() end; return end

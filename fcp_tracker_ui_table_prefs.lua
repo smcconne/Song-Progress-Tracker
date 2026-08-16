@@ -1,13 +1,11 @@
--- fcp_tracker_ui_prefs.lua
+-- fcp_tracker_ui_table_prefs.lua
 -- Prefs tab for Action Command ID configuration
 -- Integrated into Song Progress Tracker as a tab module
 
 local reaper = reaper
 local ImGui  = reaper
 
---------------------------------------------------------------------------------
 -- Prefs test progress: percentage of passed action tests (0–100)
---------------------------------------------------------------------------------
 -- Shared list of tab names (used by multiple sections below)
 local FLOAT_FX_TABS = {"Setup","Drums","Bass","Guitar","Keys","Pro Keys","Vocals","Venue","Overdrive"}
 
@@ -15,7 +13,6 @@ local DEFAULT_ACTION_LABEL = "Find an Action to Run on Tab Switch"
 
 --------------------------------------------------------------------------------
 -- Unified action definitions: key, ExtState command key, default label, default tabs
---------------------------------------------------------------------------------
 local ACTION_DEFS = {
   { key = "encore_vox",       ext_cmd = "CMD_ENCORE_VOX",       default_label = "Encore Vox Preview:",  default_tabs = { Vocals = true } },
   { key = "lyrics_clip",      ext_cmd = "CMD_LYRICS_CLIP",      default_label = "Lyrics Clipboard:",    default_tabs = { Vocals = true } },
@@ -47,26 +44,48 @@ for _, def in ipairs(ACTION_DEFS) do
   ACTION_TAB_DEFAULTS[def.key] = def.default_tabs
 end
 
+-- Read the per-action tab list from ExtState, mirroring legacy/new variant keys.
 function get_action_tabs(action_key)
   local val = reaper.GetExtState(EXT_NS, EXT_ACTION_TABS_PREFIX .. action_key)
   if val and val ~= "" then
     local tabs = {}
+    local migrated = false
     for name in val:gmatch("[^,]+") do
+      -- Keep the legacy key in the dict too, so callers that pass
+      -- either "Pro Keys" or "Keys:pro" find the membership.
       tabs[name] = true
+      -- Forward-migrate "Pro Keys" to "Keys:pro" on read
+      if name == "Pro Keys" then tabs["Keys:pro"] = true; migrated = true
+      elseif name == "Keys:pro" then tabs["Pro Keys"] = true end
+    end
+    if migrated then
+      -- Rewrite the stored value with the new keys so future reads are fast
+      local parts = {}
+      for k in pairs(tabs) do parts[#parts+1] = k end
+      table.sort(parts)
+      reaper.SetExtState(EXT_NS, EXT_ACTION_TABS_PREFIX .. action_key, table.concat(parts, ","), true)
     end
     return tabs
   end
-  -- Return a copy of defaults
+  -- Return a copy of defaults, mirroring "Pro Keys" as "Keys:pro" and vice versa.
   local defaults = ACTION_TAB_DEFAULTS[action_key] or {}
   local copy = {}
   for k, v in pairs(defaults) do copy[k] = v end
+  for k, _ in pairs(copy) do
+    if k == "Pro Keys" then copy["Keys:pro"] = true
+    elseif k == "Keys:pro" then copy["Pro Keys"] = true end
+  end
   return copy
 end
 
 function set_action_tabs(action_key, tabs)
   local parts = {}
   for _, name in ipairs(FLOAT_FX_TABS) do
-    if tabs[name] then parts[#parts+1] = name end
+    local vk = variant_key_resolve(name)
+    if tabs[name] or (vk and tabs[vk]) then
+      -- Store in the canonical variant_key form
+      parts[#parts+1] = vk or name
+    end
   end
   reaper.SetExtState(EXT_NS, EXT_ACTION_TABS_PREFIX .. action_key, table.concat(parts, ","), true)
 end
@@ -81,21 +100,54 @@ function set_action_leaving_tab_set(action_key, on)
   reaper.SetExtState(EXT_NS, EXT_ACTION_LEAVING_TAB_SET_PREFIX .. action_key, on and "1" or "0", true)
 end
 
---- Run actions on tab switch using origin/destination comparison.
--- For each action, if exactly one of origin or destination is in the tab list, run it.
--- If both or neither are present, do nothing.
+-- Lazily initialize PREFS_ACTION_LABELS from ExtState.
+-- Safe to call from run_actions_on_tab_switch (which runs before the UI is drawn on startup).
+function ensure_prefs_action_labels()
+  if PREFS_ACTION_LABELS then return end
+  PREFS_ACTION_LABELS = {}
+  for _, def in ipairs(ACTION_DEFS) do
+    if def.default_label == DEFAULT_ACTION_LABEL then
+      local saved = reaper.GetExtState(EXT_NS, "ACTION_LABEL_" .. def.key)
+      PREFS_ACTION_LABELS[def.key] = (saved ~= "" and saved) or def.default_label
+    else
+      PREFS_ACTION_LABELS[def.key] = def.default_label
+    end
+  end
+end
+
+-- Resolve a human-readable action name for error messages.
+-- Prefers the user-set label, then the default label, then the action key.
+local function action_label_for_error(def)
+  ensure_prefs_action_labels()
+  local lbl = PREFS_ACTION_LABELS[def.key]
+  if lbl and lbl ~= "" and lbl ~= DEFAULT_ACTION_LABEL then
+    return lbl
+  end
+  if def.default_label and def.default_label ~= DEFAULT_ACTION_LABEL then
+    return def.default_label
+  end
+  return def.key
+end
+
+-- Run actions on tab switch: run when exactly one of origin or
+-- destination is in the action's tab list.
 function run_actions_on_tab_switch(origin_tab, dest_tab)
-  -- Resolve Keys → Pro Keys
-  local origin = (origin_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or origin_tab
-  local dest   = (dest_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or dest_tab
+  -- Resolve Tab object or string to the canonical variant_key
+  local origin = variant_key_resolve(origin_tab)
+  local dest   = variant_key_resolve(dest_tab)
+  -- Build a set of known tab keys (display names + variant_keys) for membership check
   local known = {}
-  for _, name in ipairs(FLOAT_FX_TABS) do known[name] = true end
+  for _, name in ipairs(FLOAT_FX_TABS) do
+    known[name] = true
+    local vk = variant_key_resolve(name)
+    if vk then known[vk] = true end
+  end
 
   for _, def in ipairs(ACTION_DEFS) do
     local tabs = get_action_tabs(def.key)
     -- Filter to known tabs only
-    local origin_in = known[origin] and tabs[origin] or false
-    local dest_in   = known[dest]   and tabs[dest]   or false
+    local origin_in = (origin and known[origin] and tabs[origin]) or false
+    local dest_in   = (dest   and known[dest]   and tabs[dest])   or false
     local leaving = get_action_leaving_tab_set(def.key)
     local should_run
     if leaving then
@@ -107,10 +159,10 @@ function run_actions_on_tab_switch(origin_tab, dest_tab)
       -- Exactly one of origin/destination is in the list: run the action
       local lookup_str = reaper.GetExtState(EXT_NS, def.ext_cmd)
       if lookup_str and lookup_str ~= "" then
-        local cmd_id = reaper.NamedCommandLookup(lookup_str)
-        if cmd_id ~= 0 then
-          -- Spectracular needs MIDI item selected on PART VOCALS first
-          if def.key == "spectracular" then
+        -- Spectracular needs first MIDI item on PART VOCALS selected first
+        local pre_fn
+        if def.key == "spectracular" then
+          pre_fn = function()
             local n = reaper.CountTracks(0)
             for i = 0, n - 1 do
               local tr = reaper.GetTrack(0, i)
@@ -121,7 +173,14 @@ function run_actions_on_tab_switch(origin_tab, dest_tab)
               end
             end
           end
-          reaper.Main_OnCommand(cmd_id, 0)
+        end
+        -- Guarded: preflights script file(s) in reaper-kb.ini so REAPER's
+        -- native "Can't load file:" error can't terminate the tracker.
+        local ran = run_script_action_guarded(lookup_str, action_label_for_error(def), pre_fn)
+        if not ran then
+          -- Mark the action as not working so it shows red on the
+          -- Preferences tab (mirrors the Test button's behavior).
+          mark_prefs_action_missing(def.ext_cmd)
         end
       end
     end
@@ -145,6 +204,18 @@ local function save_test_state(key, state)
   end
 end
 
+-- Mark a prefs-defined action as not working (red) by its ext_cmd key.
+function mark_prefs_action_missing(ext_cmd)
+  if not ext_cmd or ext_cmd == "" then return end
+  for _, def in ipairs(ACTION_DEFS) do
+    if def.ext_cmd == ext_cmd then
+      PREFS_TEST_STATE[def.key] = false
+      save_test_state(def.key, false)
+      return
+    end
+  end
+end
+
 local NAMED_ACTION_KEYS = {}
 for _, def in ipairs(ACTION_DEFS) do
   if def.default_label ~= DEFAULT_ACTION_LABEL then
@@ -152,6 +223,7 @@ for _, def in ipairs(ACTION_DEFS) do
   end
 end
 
+-- Percentage of passed named-action tests (0-100).
 function prefs_test_pct()
   if not PREFS_TEST_STATE then return 0 end
   local passed = 0
@@ -161,76 +233,67 @@ function prefs_test_pct()
   return math.floor(passed / #NAMED_ACTION_KEYS * 100)
 end
 
---------------------------------------------------------------------------------
 -- Show Floating Preview FX preference (global, per-tab)
---------------------------------------------------------------------------------
-local FLOATING_FX_DEFAULTS = {
-  Setup = false,
-  Drums = true, Bass = true, Guitar = true, Keys = true,
-  ["Pro Keys"] = false,
-  Vocals = false, Venue = false, Overdrive = true,
-}
-
 -- Reverse lookup: fx key -> 0-based dropdown index
 local FLOAT_FX_TAB_IDX = {}
 for i, name in ipairs(FLOAT_FX_TABS) do FLOAT_FX_TAB_IDX[name] = i - 1 end
 
 -- Set the Preferences dropdown to show the given runtime tab
 function set_prefs_dropdown_for_tab(tab)
-  local key = tab
-  if key == "Keys" and PRO_KEYS_ACTIVE then key = "Pro Keys" end
-  local idx = FLOAT_FX_TAB_IDX[key]
+  local new_key = variant_key_resolve(tab)
+  if not new_key then return end
+  -- The dropdown uses display names. Map variant_key back to display name.
+  local display = (new_key == "Keys:pro") and "Pro Keys"
+               or (new_key == "Keys:regular") and "Keys"
+               or new_key
+  local idx = FLOAT_FX_TAB_IDX[display]
   if idx then PREFS_SELECTED_TAB_IDX = idx end
 end
 
---------------------------------------------------------------------------------
--- MIDI Editor Open preference (global, per-tab)
---------------------------------------------------------------------------------
-local MIDI_EDITOR_DEFAULTS = {
-  Setup = false,
-  Drums = false, Bass = false, Guitar = false, Keys = false,
-  ["Pro Keys"] = true,
-  Vocals = true, Venue = true, Overdrive = false,
-}
-
--- Map runtime tab names to MIDI editor preference keys (same mapping as FX)
-local MIDI_EDITOR_KEY = {
-}
-
-function get_midi_editor_open(tab)
-  local key = MIDI_EDITOR_KEY[tab] or tab
-  local val = reaper.GetExtState(EXT_NS, "MIDI_EDITOR_OPEN_" .. key)
+-- Private read helper: canonical variant key, then the tab variant's
+-- default_preferences[field] when the on-disk value is empty.
+local function read_pref(tab, field, ext_prefix)
+  local vk = variant_key_resolve(tab)
+  if not vk then return false end
+  local val = reaper.GetExtState(EXT_NS, ext_prefix .. vk)
   if val == "1" then return true end
   if val == "0" then return false end
-  return MIDI_EDITOR_DEFAULTS[key] or false
+  -- Empty on-disk: fall back to the tab variant's default.
+  local colon = vk:find(":", 1, true)
+  local tab_name    = colon and vk:sub(1, colon - 1) or vk
+  local variant_key = colon and vk:sub(colon + 1)    or "regular"
+  local v = TABS_BY_NAME[tab_name].variants[variant_key]
+  return v.default_preferences[field]
+end
+
+function get_midi_editor_open(tab)
+  return read_pref(tab, "midi_editor_open", "MIDI_EDITOR_OPEN_")
 end
 
 function set_midi_editor_open(tab, on)
-  local key = MIDI_EDITOR_KEY[tab] or tab
-  reaper.SetExtState(EXT_NS, "MIDI_EDITOR_OPEN_" .. key, on and "1" or "0", true)
+  local new_key = variant_key_resolve(tab)
+  if not new_key then return end
+  reaper.SetExtState(EXT_NS, "MIDI_EDITOR_OPEN_" .. new_key, on and "1" or "0", true)
 end
 
 function get_show_floating_fx(tab)
-  if not tab then return false end
-  local key = tab
-  local val = reaper.GetExtState(EXT_NS, "SHOW_FLOAT_FX_" .. key)
-  if val == "1" then return true end
-  if val == "0" then return false end
-  return FLOATING_FX_DEFAULTS[key] or false
+  return read_pref(tab, "show_float_fx", "SHOW_FLOAT_FX_")
 end
 
 function set_show_floating_fx(tab, on)
-  local key = tab
-  reaper.SetExtState(EXT_NS, "SHOW_FLOAT_FX_" .. key, on and "1" or "0", true)
+  local new_key = variant_key_resolve(tab)
+  if not new_key then return end
+  reaper.SetExtState(EXT_NS, "SHOW_FLOAT_FX_" .. new_key, on and "1" or "0", true)
 end
 
 function get_show_just_fx(tab)
-  local val = reaper.GetExtState(EXT_NS, "SHOW_JUST_FX_" .. tab)
-  return val == "1"
+  return read_pref(tab, "show_just_fx", "SHOW_JUST_FX_")
 end
 
 function set_show_just_fx(tab, on)
-  reaper.SetExtState(EXT_NS, "SHOW_JUST_FX_" .. tab, on and "1" or "0", true)
+  local new_key = variant_key_resolve(tab)
+  if not new_key then return end
+  reaper.SetExtState(EXT_NS, "SHOW_JUST_FX_" .. new_key, on and "1" or "0", true)
 end
 
 -- Open the 4 known floating FX windows and trigger alignment
@@ -266,13 +329,15 @@ function close_floating_fx()
 end
 
 -- Per-tab "Just This" FX window geometry (separate from All tiling)
-local TAB_TO_ORDER = { Drums="DRUMS", Bass="BASS", Guitar="GUITAR", Keys="KEYS", ["Pro Keys"]="KEYS" }
+local TAB_TO_ORDER = { Drums="DRUMS", Bass="BASS", Guitar="GUITAR", Keys="KEYS", ["Pro Keys"]="KEYS", ["Keys:regular"]="KEYS", ["Keys:pro"]="KEYS" }
 
 function get_just_fx_geom(tab)
-  local sx = reaper.GetExtState(EXT_NS, "JUST_FX_X_" .. tab)
-  local sy = reaper.GetExtState(EXT_NS, "JUST_FX_Y_" .. tab)
-  local sw = reaper.GetExtState(EXT_NS, "JUST_FX_W_" .. tab)
-  local sh = reaper.GetExtState(EXT_NS, "JUST_FX_H_" .. tab)
+  local new_key = variant_key_resolve(tab)
+  if not new_key then return nil end
+  local sx = reaper.GetExtState(EXT_NS, "JUST_FX_X_" .. new_key)
+  local sy = reaper.GetExtState(EXT_NS, "JUST_FX_Y_" .. new_key)
+  local sw = reaper.GetExtState(EXT_NS, "JUST_FX_W_" .. new_key)
+  local sh = reaper.GetExtState(EXT_NS, "JUST_FX_H_" .. new_key)
   if sx ~= "" and sy ~= "" and sw ~= "" and sh ~= "" then
     return tonumber(sx), tonumber(sy), tonumber(sw), tonumber(sh)
   end
@@ -280,7 +345,9 @@ function get_just_fx_geom(tab)
 end
 
 function save_just_fx_geom(tab)
-  local this_key = TAB_TO_ORDER[tab]
+  local new_key = variant_key_resolve(tab)
+  if not new_key then return end
+  local this_key = TAB_TO_ORDER[new_key]
   if not this_key then return end
   local tr = find_track_by_name(TRACKS[this_key])
   if not tr then return end
@@ -290,10 +357,10 @@ function save_just_fx_geom(tab)
   if not hwnd then return end
   local _, x, y, r, b = reaper.JS_Window_GetRect(hwnd)
   local w, h = r - x, b - y
-  reaper.SetExtState(EXT_NS, "JUST_FX_X_" .. tab, tostring(x), true)
-  reaper.SetExtState(EXT_NS, "JUST_FX_Y_" .. tab, tostring(y), true)
-  reaper.SetExtState(EXT_NS, "JUST_FX_W_" .. tab, tostring(w), true)
-  reaper.SetExtState(EXT_NS, "JUST_FX_H_" .. tab, tostring(h), true)
+  reaper.SetExtState(EXT_NS, "JUST_FX_X_" .. new_key, tostring(x), true)
+  reaper.SetExtState(EXT_NS, "JUST_FX_Y_" .. new_key, tostring(y), true)
+  reaper.SetExtState(EXT_NS, "JUST_FX_W_" .. new_key, tostring(w), true)
+  reaper.SetExtState(EXT_NS, "JUST_FX_H_" .. new_key, tostring(h), true)
 end
 
 -- Open just one instrument's floating FX with saved per-tab geometry, close the other three
@@ -333,9 +400,7 @@ function open_just_instrument_fx(tab)
   end
 end
 
---------------------------------------------------------------------------------
 -- Combo+Checkbox dropdown for per-action tab list
---------------------------------------------------------------------------------
 -- Cache for action tab lists (loaded once, updated on checkbox change)
 local action_tab_cache = {}
 
@@ -346,20 +411,34 @@ local function get_cached_action_tabs(action_key)
   return action_tab_cache[action_key]
 end
 
+-- Draw the combo showing which tabs run this action, with checkbox toggles.
 local function draw_action_tab_combo(ctx, action_key)
   local tabs = get_cached_action_tabs(action_key)
-  -- Build preview string from checked tabs
+  -- Build preview string from checked tabs (looking up both display name and variant_key)
   local preview_parts = {}
   for _, name in ipairs(FLOAT_FX_TABS) do
-    if tabs[name] then preview_parts[#preview_parts+1] = name end
+    local vk = variant_key_resolve(name)
+    if tabs[name] or (vk and tabs[vk]) then
+      preview_parts[#preview_parts+1] = name
+    end
   end
   local preview = #preview_parts > 0 and table.concat(preview_parts, ", ") or "(none)"
   ImGui.ImGui_SetNextItemWidth(ctx, -1)
   if ImGui.ImGui_BeginCombo(ctx, "##tabs_" .. action_key, preview) then
     for _, name in ipairs(FLOAT_FX_TABS) do
-      local rv, val = ImGui.ImGui_Checkbox(ctx, name .. "##tab_" .. action_key, tabs[name] or false)
+      local vk = variant_key_resolve(name)
+      local is_checked = tabs[name] or (vk and tabs[vk]) or false
+      local rv, val = ImGui.ImGui_Checkbox(ctx, name .. "##tab_" .. action_key, is_checked)
       if rv then
-        tabs[name] = val or nil
+        -- Store in both the display name and the variant_key so legacy and new
+        -- callers both see the right state until the on-disk migration runs.
+        if val then
+          tabs[name] = true
+          if vk then tabs[vk] = true end
+        else
+          tabs[name] = nil
+          if vk then tabs[vk] = nil end
+        end
         set_action_tabs(action_key, tabs)
       end
     end
@@ -369,7 +448,6 @@ end
 
 --------------------------------------------------------------------------------
 -- Draw Prefs Tab Content (public function called from fcp_tracker_ui.lua)
---------------------------------------------------------------------------------
 function draw_prefs_tab(ctx)
   local _, avail_h = ImGui.ImGui_GetContentRegionAvail(ctx)
 
@@ -395,7 +473,7 @@ function draw_prefs_tab(ctx)
     ImGui.ImGui_DrawList_AddLine(ImGui.ImGui_GetWindowDrawList(ctx), x, y, x, y + line_h, 0x666666FF)
     ImGui.ImGui_Dummy(ctx, 1, 0)
     ImGui.ImGui_SameLine(ctx)
-    ImGui.ImGui_Text(ctx, "5-Lane Previews:")
+    ImGui.ImGui_Text(ctx, "Previews:")
     ImGui.ImGui_SameLine(ctx)
     local float_fx_on = get_show_floating_fx(sel_tab_name)
     local chg_fx, new_fx = ImGui.ImGui_Checkbox(ctx, "All", float_fx_on)
@@ -450,17 +528,7 @@ function draw_prefs_tab(ctx)
   end
 
   -- Labels that update to the action name on Test
-  if not PREFS_ACTION_LABELS then
-    PREFS_ACTION_LABELS = {}
-    for _, def in ipairs(ACTION_DEFS) do
-      if def.default_label == DEFAULT_ACTION_LABEL then
-        local saved = reaper.GetExtState(EXT_NS, "ACTION_LABEL_" .. def.key)
-        PREFS_ACTION_LABELS[def.key] = (saved ~= "" and saved) or def.default_label
-      else
-        PREFS_ACTION_LABELS[def.key] = def.default_label
-      end
-    end
-  end
+  ensure_prefs_action_labels()
 
   local test_btn_w = 56
 
@@ -474,7 +542,6 @@ function draw_prefs_tab(ctx)
 
   --------------------------------------------------------------
   -- HEADER TABLE (fixed, outside scrolling child)
-  --------------------------------------------------------------
   local hdr_avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
   if ImGui.ImGui_BeginTable(ctx, "PrefsActionsHdr", 5, tbl_flags, hdr_avail_w - scrollbar_w) then
     ImGui.ImGui_TableSetupColumn(ctx, "Action Name", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
@@ -493,7 +560,6 @@ function draw_prefs_tab(ctx)
 
   --------------------------------------------------------------
   -- BODY metrics
-  --------------------------------------------------------------
   local body_avail_h = select(2, ImGui.ImGui_GetContentRegionAvail(ctx))
   local num_actions = #ACTION_DEFS
   local rows_fit = math.max(1, math.min(num_actions, math.floor((body_avail_h - footer_reserve) / row_h)))
@@ -503,40 +569,10 @@ function draw_prefs_tab(ctx)
 
   --------------------------------------------------------------
   -- BODY: native scrollbar, 1-row wheel steps, snap to rows
-  --------------------------------------------------------------
-  local child_flags = ImGui.ImGui_WindowFlags_NoScrollWithMouse()
-  if ImGui.ImGui_BeginChild(ctx, "prefs_rows_scroller", 0, body_h, 0, child_flags) then
+  if table_zone_child(ctx, "prefs_rows_scroller", body_h) then
 
     local sy = ImGui.ImGui_GetScrollY(ctx)
-
-    do
-      local n_from_sy = math.max(0, math.min(
-        max_n, math.floor((sy / row_h) + 0.5)
-      ))
-      if TAB_SCROLL_ROW[scroll_key] ~= n_from_sy then
-        TAB_SCROLL_ROW[scroll_key] = n_from_sy
-      end
-    end
-
-    if TAB_SCROLL_ROW[scroll_key] ~= nil then
-      local target_sy = (TAB_SCROLL_ROW[scroll_key] or 0) * row_h
-      if math.abs(sy - target_sy) > 0.5 then
-        ImGui.ImGui_SetScrollY(ctx, target_sy)
-        sy = target_sy
-      end
-    end
-
-    if ImGui.ImGui_IsWindowHovered(ctx, 0) then
-      local wheel = ImGui.ImGui_GetMouseWheel(ctx) or 0
-      if wheel ~= 0 then
-        local step = (wheel > 0) and -1 or 1
-        local n = (TAB_SCROLL_ROW[scroll_key] or 0) + step
-        if n < 0 then n = 0
-        elseif n > max_n then n = max_n end
-        TAB_SCROLL_ROW[scroll_key] = n
-        ImGui.ImGui_SetScrollY(ctx, n * row_h)
-      end
-    end
+    scroll_snap_to_row(ctx, "prefs", max_n, row_h)
 
   if ImGui.ImGui_BeginTable(ctx, "PrefsActions", 5, tbl_flags) then
   ImGui.ImGui_TableSetupColumn(ctx, "Action Name", ImGui.ImGui_TableColumnFlags_WidthStretch(), 1.0)
@@ -548,11 +584,7 @@ function draw_prefs_tab(ctx)
   local first_row_y
   for i, def in ipairs(ACTION_DEFS) do
     local key = def.key
-    if i == num_actions then
-      ImGui.ImGui_TableNextRow(ctx, 0, row_h + 1)
-    else
-      ImGui.ImGui_TableNextRow(ctx)
-    end
+    ImGui.ImGui_TableNextRow(ctx, last_row_height_hack(i, num_actions, row_h))
     if i == 1 then
       first_row_y = select(2, ImGui.ImGui_GetCursorScreenPos(ctx))
     elseif i == 2 and first_row_y then
@@ -629,16 +661,23 @@ function draw_prefs_tab(ctx)
       local cmd = SETUP_CMD_BUFFERS[key]
       local cmd_id = cmd ~= "" and reaper.NamedCommandLookup(cmd) or 0
       if cmd_id ~= 0 then
-        reaper.Main_OnCommand(cmd_id, 0)
-        local aname = reaper.kbd_getTextFromCmd(cmd_id, reaper.SectionFromUniqueID(0))
-        if aname and aname ~= "" then
-          PREFS_ACTION_LABELS[key] = aname
-          if def.default_label == DEFAULT_ACTION_LABEL then
-            reaper.SetExtState(EXT_NS, "ACTION_LABEL_" .. key, aname, true)
+        local ran = run_script_action_guarded(cmd, PREFS_ACTION_LABELS[key] or def.default_label)
+        if ran then
+          local aname = reaper.kbd_getTextFromCmd(cmd_id, reaper.SectionFromUniqueID(0))
+          if aname and aname ~= "" then
+            PREFS_ACTION_LABELS[key] = aname
+            if def.default_label == DEFAULT_ACTION_LABEL then
+              reaper.SetExtState(EXT_NS, "ACTION_LABEL_" .. key, aname, true)
+            end
           end
+          PREFS_TEST_STATE[key] = true
+          save_test_state(key, true)
+        else
+          -- Guarded runner already showed the error; mark failed but keep
+          -- the command ID so the user can restore the script file.
+          PREFS_TEST_STATE[key] = false
+          save_test_state(key, false)
         end
-        PREFS_TEST_STATE[key] = true
-        save_test_state(key, true)
       else
         SETUP_CMD_BUFFERS[key] = ""
         reaper.SetExtState(EXT_NS, def.ext_cmd, "", true)

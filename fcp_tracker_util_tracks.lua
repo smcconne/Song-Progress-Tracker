@@ -1,7 +1,8 @@
--- fcp_tracker_ui_track_utils.lua
+-- fcp_tracker_util_tracks.lua
 -- Track, MIDI editor, and FX helper functions for Song Progress UI
 
 local reaper = reaper
+local ImGui  = reaper
 
 -- Ensure MIDI editor command 40818 is toggled off
 function ensure_midi_editor_cmd_off(cmd_id)
@@ -29,8 +30,7 @@ function close_midi_editor_if_not_inline()
 end
 
 -- Select first MIDI item on track and open in MIDI editor
--- Also sets time selection to the region at the current cursor/play position
--- Returns true if a MIDI item was found and opened
+-- Sets time selection to the region at cursor; returns true if item found
 function select_first_midi_item_on_track(tr)
   if not tr then return false end
 
@@ -82,6 +82,255 @@ function select_first_midi_item_on_track(tr)
     end
   end
   return false
+end
+
+-- Look up a track by exact name (shared copy for model, overdrive, focus/layout)
+function find_track_by_name(want)
+  local n = reaper.CountTracks(0)
+  for i = 0, n-1 do
+    local tr = reaper.GetTrack(0, i)
+    local ok, name = reaper.GetTrackName(tr)
+    if ok and name == want then return tr end
+  end
+end
+
+-- Walk all project markers/regions and populate REGIONS + REG_COL_U32
+-- (colors go through the shared native_color_to_u32 helper).
+function collect_regions()
+  local _, n_mark, n_rgn = reaper.CountProjectMarkers(0)
+  local total = (n_mark or 0) + (n_rgn or 0)
+  local regs = {}
+  for i = 0, total-1 do
+    local ok, isrgn, pos, r_end, name, markidx, color = reaper.EnumProjectMarkers3(0, i)
+    if ok and isrgn then
+      regs[#regs+1] = {
+        id    = markidx,
+        name  = (name and name ~= "") and name or ("Region "..tostring(markidx)),
+        pos   = pos or 0,
+        r_end = r_end or pos or 0,
+        color = color or 0
+      }
+    end
+  end
+  table.sort(regs, function(a,b) return a.pos < b.pos end)
+
+  REG_COL_U32 = {}
+  for i = 1, #regs do
+    REG_COL_U32[i] = {
+      header = native_color_to_u32(regs[i].color, 0.65),
+      cell   = native_color_to_u32(regs[i].color, 0.25)
+    }
+  end
+  return regs
+end
+
+-- Get the measure containing the [end] event from EVENTS track
+function get_end_event_measure()
+  local n = reaper.CountTracks(0)
+  for i = 0, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local ok, name = reaper.GetTrackName(tr)
+    if ok and name == "EVENTS" then
+      local item_count = reaper.CountTrackMediaItems(tr)
+      for j = 0, item_count - 1 do
+        local item = reaper.GetTrackMediaItem(tr, j)
+        local take = reaper.GetActiveTake(item)
+        if take and reaper.TakeIsMIDI(take) then
+          local _, _, _, textsyx_cnt = reaper.MIDI_CountEvts(take)
+          for ev = 0, textsyx_cnt - 1 do
+            local ok2, sel, muted, ppq, typ, msg = reaper.MIDI_GetTextSysexEvt(take, ev, false, false, 0, 0, "")
+            if ok2 and typ >= 1 and msg == "[end]" then
+              local proj_time = reaper.MIDI_GetProjTimeFromPPQPos(take, ppq)
+              local _, measures = reaper.TimeMap2_timeToBeats(0, proj_time)
+              return math.floor(measures) + 1  -- 1-indexed measure
+            end
+          end
+        end
+      end
+      break
+    end
+  end
+  return nil  -- No [end] event found
+end
+
+function get_first_midi_item_end_measure()
+  -- Find PART DRUMS track and get the start of the first MIDI item
+  -- Use [end] event measure as the last measure if available
+  local first_m = 1
+  local last_m = 100  -- fallback
+  
+  local n = reaper.CountTracks(0)
+  for i = 0, n-1 do
+    local tr = reaper.GetTrack(0, i)
+    local ok, name = reaper.GetTrackName(tr)
+    if ok and name == "PART DRUMS" then
+      local item_count = reaper.CountTrackMediaItems(tr)
+      if item_count > 0 then
+        local item = reaper.GetTrackMediaItem(tr, 0)
+        local item_start = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
+        local item_len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
+        local item_end = item_start + item_len
+        
+        -- Convert to measure
+        local _, end_measure = reaper.TimeMap2_timeToBeats(0, item_end)
+        local _, start_measure = reaper.TimeMap2_timeToBeats(0, item_start)
+        
+        first_m = math.floor(start_measure) + 1
+        last_m = math.floor(end_measure) + 1
+        break
+      end
+    end
+  end
+  
+  -- Override last_m with [end] event measure if available
+  local end_event_m = get_end_event_measure()
+  if end_event_m then
+    last_m = end_event_m
+  end
+  
+  return first_m, last_m
+end
+
+function collect_overdrive_data()
+  local first_m, last_m = get_first_midi_item_end_measure()
+  OVERDRIVE_MEASURES.first = first_m
+  OVERDRIVE_MEASURES.last = last_m
+  
+  -- Clear and rebuild
+  for _, row in ipairs(OVERDRIVE_ROWS) do
+    OVERDRIVE_DATA[row] = {}
+    OVERDRIVE_NOTES[row] = {}
+    OVERDRIVE_NOTE_POSITIONS[row] = {}
+    OVERDRIVE_POSITIONS[row] = {}
+    OVERDRIVE_PHRASES[row] = {}  -- List of {start_m, start_pos, end_m, end_pos} for each OV note
+    for m = first_m, last_m do
+      OVERDRIVE_DATA[row][m] = false
+      OVERDRIVE_NOTES[row][m] = 0  -- Count of playable notes
+      OVERDRIVE_NOTE_POSITIONS[row][m] = {}  -- List of {start, end} positions (0-1)
+      OVERDRIVE_POSITIONS[row][m] = {}  -- List of {start, fin} positions (0-1) for OV phrases
+    end
+  end
+  
+  -- Clear FILL data for drums
+  OVERDRIVE_FILL["Drums"] = {}
+  for m = first_m, last_m do
+    OVERDRIVE_FILL["Drums"][m] = false
+  end
+  
+  -- Scan each track for overdrive notes (pitch 116) and playable notes
+  for idx, trackname in ipairs(OVERDRIVE_TRACKS) do
+    local row = OVERDRIVE_ROWS[idx]
+    local n = reaper.CountTracks(0)
+    for i = 0, n-1 do
+      local tr = reaper.GetTrack(0, i)
+      local ok, name = reaper.GetTrackName(tr)
+      if ok and name == trackname then
+        local tk = first_midi_take_on_track(tr)
+        if tk then
+          local _, note_cnt = reaper.MIDI_CountEvts(tk)
+          local m5_notes = {}
+          for ni = 0, note_cnt - 1 do
+            local ok2, _, _, ppq_s, ppq_e, _, pitch = reaper.MIDI_GetNote(tk, ni)
+            if ok2 then
+              local t_s = reaper.MIDI_GetProjTimeFromPPQPos(tk, ppq_s)
+              local t_e = reaper.MIDI_GetProjTimeFromPPQPos(tk, ppq_e)
+              
+              -- Get measures this note spans
+              local _, m_start_idx = reaper.TimeMap2_timeToBeats(0, t_s)
+              local _, m_end_idx = reaper.TimeMap2_timeToBeats(0, t_e)
+              local m_start = m_start_idx + 1  -- Convert to 1-indexed
+              
+              -- Check if note ends at or before the start of the end measure
+              -- Get the time at the start of m_end_idx measure
+              local m_end_start_time = reaper.TimeMap2_beatsToTime(0, 0, m_end_idx)
+              
+              local m_end
+              if t_e <= m_end_start_time + 0.0001 then
+                -- Note ends at or before this measure's start, don't include it
+                m_end = m_end_idx  -- Previous measure in 1-indexed terms
+              else
+                m_end = m_end_idx + 1  -- Note extends into this measure, include it
+              end
+              
+              -- Ensure m_end is at least m_start (for short notes within a single measure)
+              if m_end < m_start then
+                m_end = m_start
+              end
+              
+              if pitch == OVERDRIVE_PITCH then
+                -- Mark overdrive and store positions
+                local note_qn_start = reaper.MIDI_GetProjQNFromPPQPos(tk, ppq_s)
+                local note_qn_end = reaper.MIDI_GetProjQNFromPPQPos(tk, ppq_e)
+                
+                -- Store phrase data (start/end measure and relative positions)
+                local clamped_start_m = math.max(m_start, first_m)
+                local clamped_end_m = math.min(m_end, last_m)
+                if clamped_end_m >= clamped_start_m then
+                  local _, start_m_qn_start, start_m_qn_end = reaper.TimeMap_GetMeasureInfo(0, clamped_start_m - 1)
+                  local _, end_m_qn_start, end_m_qn_end = reaper.TimeMap_GetMeasureInfo(0, clamped_end_m - 1)
+                  local start_measure_len = start_m_qn_end - start_m_qn_start
+                  local end_measure_len = end_m_qn_end - end_m_qn_start
+                  local start_pos = math.max(0, (note_qn_start - start_m_qn_start) / start_measure_len)
+                  local end_pos = math.min(1, (note_qn_end - end_m_qn_start) / end_measure_len)
+                  table.insert(OVERDRIVE_PHRASES[row], {
+                    start_m = clamped_start_m,
+                    start_pos = start_pos,
+                    end_m = clamped_end_m,
+                    end_pos = end_pos
+                  })
+                end
+                
+                for m = m_start, m_end do
+                  if m >= first_m and m <= last_m then
+                    OVERDRIVE_DATA[row][m] = true
+                    -- Store OV position within this measure
+                    local _, m_qn_start, m_qn_end = reaper.TimeMap_GetMeasureInfo(0, m - 1)
+                    local measure_len = m_qn_end - m_qn_start
+                    -- Clamp to measure bounds
+                    local rel_start = math.max(0, (note_qn_start - m_qn_start) / measure_len)
+                    local rel_end = math.min(1, (note_qn_end - m_qn_start) / measure_len)
+                    if rel_end > rel_start then
+                      table.insert(OVERDRIVE_POSITIONS[row][m], {start = rel_start, fin = rel_end})
+                    end
+                  end
+                end
+              elseif pitch >= 120 and pitch <= 124 and row == "Drums" then
+                -- FILL notes (drums only)
+                for m = m_start, m_end do
+                  if m >= first_m and m <= last_m then
+                    OVERDRIVE_FILL["Drums"][m] = true
+                  end
+                end
+              elseif pitch >= 96 and pitch <= 100 then
+                -- Expert-range notes (gems) for counting
+                -- Only count the note-on (m_start), not sustain measures
+                local pitch_row = pitch - 96  -- 0-4 for pitch 96-100
+                if m_start >= first_m and m_start <= last_m then
+                  OVERDRIVE_NOTES[row][m_start] = (OVERDRIVE_NOTES[row][m_start] or 0) + 1
+                end
+                -- Store note position within each measure it spans (for visual display)
+                for m = m_start, m_end do
+                  if m >= first_m and m <= last_m then
+                    local _, m_qn_start, m_qn_end = reaper.TimeMap_GetMeasureInfo(0, m - 1)
+                    local measure_len = m_qn_end - m_qn_start
+                    local note_qn_start = reaper.MIDI_GetProjQNFromPPQPos(tk, ppq_s)
+                    local note_qn_end = reaper.MIDI_GetProjQNFromPPQPos(tk, ppq_e)
+                    -- Clamp to measure bounds
+                    local rel_start = math.max(0, (note_qn_start - m_qn_start) / measure_len)
+                    local rel_end = math.min(1, (note_qn_end - m_qn_start) / measure_len)
+                    if rel_end > rel_start then
+                      table.insert(OVERDRIVE_NOTE_POSITIONS[row][m], {start = rel_start, fin = rel_end, row = pitch_row})
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+        break
+      end
+    end
+  end
 end
 
 -- Select first MIDI item on track WITHOUT opening MIDI editor
@@ -160,7 +409,8 @@ function apply_venue_note_order_and_select(noteLine)
 end
 
 function apply_vocals_note_order(start_note)
-  local trackname = VOCALS_TRACKS[VOCALS_MODE]
+  local tab_obj = current_tab_obj and current_tab_obj() or nil
+  local trackname = tab_obj and tab_obj:current_mode() and tab_obj:current_mode().trackname or nil
   if not trackname then return end
   local tr = find_track_by_name(trackname)
   if not tr then return end
@@ -227,35 +477,142 @@ local function get_script_cmd(ext_key)
   return 0
 end
 
+-- Get ExtState-stored lookup string (e.g. "_RS..." or "_<32hex>") or nil
+local function get_script_lookup(ext_key)
+  local lookup_str = reaper.GetExtState(EXT_NS, ext_key)
+  if lookup_str and lookup_str ~= "" then return lookup_str end
+  return nil
+end
+
+-- Missing-script preflight (reaper-kb.ini): REAPER's native "Can't load file:"
+-- dialog aborts the calling script, so verify script files before dispatch.
+local kb_path_cache, kb_path_cache_ts = nil, 0
+local function get_reaper_kb_path()
+  if kb_path_cache and (reaper.time_precise() - kb_path_cache_ts) < 5.0 then
+    return kb_path_cache
+  end
+  local rp = reaper.GetResourcePath()
+  if not rp or rp == "" then return nil end
+  local sep = package.config:sub(1, 1)
+  local p = rp .. sep .. "reaper-kb.ini"
+  if not reaper.file_exists(p) then
+    local other = (sep == "/") and "\\" or "/"
+    p = rp .. other .. "reaper-kb.ini"
+    if not reaper.file_exists(p) then return nil end
+  end
+  kb_path_cache, kb_path_cache_ts = p, reaper.time_precise()
+  return p
+end
+
+-- Resolve an RS action ID to its script path: path = exists,
+-- false = registered but missing, nil = unknown.
+local function resolve_rs_script_path(needle)
+  local kb = get_reaper_kb_path()
+  if not kb then return nil end
+  local data = slurp(kb)
+  if not data then return nil end
+  local sep = package.config:sub(1, 1)
+  local rp = reaper.GetResourcePath() or ""
+  for line in data:gmatch("[^\r\n]+") do
+    if line:sub(1, 3) == "SCR" then
+      local _, _, id, raw_path =
+        line:match('^SCR%s+(%d+)%s+(%d+)%s+(%S+)%s+"[^"]*"%s*(.*)$')
+      if id == needle and raw_path and raw_path ~= "" then
+        local path = raw_path:match('^"(.*)"$') or raw_path
+        -- Tolerate Windows extended-length path prefix "\\?\"
+        path = path:gsub("^\\\\%?\\", "")
+        -- Resolve relative paths against <ResourcePath>/Scripts/
+        if not (path:match("^[A-Za-z]:[\\/]") or path:match("^[\\/]") or path:sub(1, 1) == "~") then
+          path = rp .. sep .. "Scripts" .. sep .. path
+        end
+        if reaper.file_exists(path) then return path end
+        return false
+      end
+    end
+  end
+  return nil
+end
+
+-- Look up a custom action's step list by its bare 32-hex ID (no leading _).
+local function get_custom_action_steps(needle)
+  local kb = get_reaper_kb_path()
+  if not kb then return nil end
+  local data = slurp(kb)
+  if not data then return nil end
+  for line in data:gmatch("[^\r\n]+") do
+    if line:sub(1, 3) == "ACT" then
+      local id, steps = line:match('^ACT%s+%d+%s+%d+%s+"(%x+)"%s+"[^"]*"%s*(.-)%s*$')
+      if id == needle then return steps end
+    end
+  end
+  return nil
+end
+
+-- True if any ReaScript in the action's chain is missing (recurses into
+-- custom actions; built-ins/extension actions ignored; cycles guarded).
+local function chain_has_missing_script(lookup_str, visited)
+  if not lookup_str or lookup_str == "" then return false end
+  if visited[lookup_str] then return false end
+  visited[lookup_str] = true
+  if lookup_str:sub(1, 3) == "_RS" then
+    return resolve_rs_script_path(lookup_str:sub(2)) == false
+  end
+  if lookup_str:match("^_[0-9a-f]+$") then
+    local steps = get_custom_action_steps(lookup_str:sub(2))
+    if not steps then return false end
+    for step in steps:gmatch("%S+") do
+      if step:sub(1, 1) == "_" and chain_has_missing_script(step, visited) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+-- Run a script/custom action with preflight so a missing file shows a message
+-- instead of REAPER's native dialog terminating the tracker. Returns true if invoked.
+function run_script_action_guarded(lookup_str, action_label, pre_fn)
+  if not lookup_str or lookup_str == "" then return false end
+  local cmd_id = reaper.NamedCommandLookup(lookup_str)
+  if cmd_id == 0 then return false end
+  if chain_has_missing_script(lookup_str, {}) then
+    mb("The action '" .. tostring(action_label or lookup_str) ..
+       "' could not be found, please reassign it on the Preferences tab.",
+       "Action Not Found")
+    return false
+  end
+  if pre_fn then pre_fn() end
+  local ok = pcall(reaper.Main_OnCommand, cmd_id, 0)
+  if not ok then
+    mb("The action '" .. tostring(action_label or lookup_str) ..
+       "' could not be found, please reassign it on the Preferences tab.",
+       "Action Not Found")
+    return false
+  end
+  return true
+end
+
 -- Start/toggle Encore Vox Preview only
 function start_encore_vox_preview_only()
-  local cmd_encore = get_script_cmd(EXT_CMD_ENCORE_VOX)
-  if cmd_encore ~= 0 then
-    reaper.Main_OnCommand(cmd_encore, 0)
-  end
+  local ran = run_script_action_guarded(get_script_lookup(EXT_CMD_ENCORE_VOX), "Encore Vox Preview")
+  if not ran and mark_prefs_action_missing then mark_prefs_action_missing(EXT_CMD_ENCORE_VOX) end
 end
 
 -- Start/toggle Venue Preview script
 function start_venue_preview()
-  local cmd_venue = get_script_cmd(EXT_CMD_VENUE_PREVIEW)
-  if cmd_venue ~= 0 then
-    reaper.Main_OnCommand(cmd_venue, 0)
-  end
+  local ran = run_script_action_guarded(get_script_lookup(EXT_CMD_VENUE_PREVIEW), "Venue Preview")
+  if not ran and mark_prefs_action_missing then mark_prefs_action_missing(EXT_CMD_VENUE_PREVIEW) end
 end
 
 -- Start/toggle Pro Keys Preview script
 function start_pro_keys_preview()
-  local cmd_pro_keys = get_script_cmd(EXT_CMD_PRO_KEYS_PREVIEW)
-  if cmd_pro_keys ~= 0 then
-    reaper.Main_OnCommand(cmd_pro_keys, 0)
-  end
+  local ran = run_script_action_guarded(get_script_lookup(EXT_CMD_PRO_KEYS_PREVIEW), "Pro Keys Preview")
+  if not ran and mark_prefs_action_missing then mark_prefs_action_missing(EXT_CMD_PRO_KEYS_PREVIEW) end
 end
 
--- Start/toggle Spectracular script
+-- Start/toggle Spectracular script (selects first MIDI item on PART VOCALS first)
 function start_spectracular()
-  local cmd_spectracular = get_script_cmd(EXT_CMD_SPECTRACULAR)
-  if cmd_spectracular ~= 0 then
-    -- Select first MIDI item on PART VOCALS before running Spectracular
+  local ran = run_script_action_guarded(get_script_lookup(EXT_CMD_SPECTRACULAR), "Spectracular Stereo", function()
     local n = reaper.CountTracks(0)
     for i = 0, n - 1 do
       local tr = reaper.GetTrack(0, i)
@@ -265,16 +622,14 @@ function start_spectracular()
         break
       end
     end
-    reaper.Main_OnCommand(cmd_spectracular, 0)
-  end
+  end)
+  if not ran and mark_prefs_action_missing then mark_prefs_action_missing(EXT_CMD_SPECTRACULAR) end
 end
 
 -- Start/toggle Lyrics Clipboard script
 function start_lyrics_clipboard()
-  local cmd_lyrics = get_script_cmd(EXT_CMD_LYRICS_CLIP)
-  if cmd_lyrics ~= 0 then
-    reaper.Main_OnCommand(cmd_lyrics, 0)
-  end
+  local ran = run_script_action_guarded(get_script_lookup(EXT_CMD_LYRICS_CLIP), "Lyrics Clipboard")
+  if not ran and mark_prefs_action_missing then mark_prefs_action_missing(EXT_CMD_LYRICS_CLIP) end
 end
 
 -- Get track FX enabled state by track name
@@ -307,30 +662,23 @@ function ensure_track_fx_chain_enabled(trackname)
   end
 end
 
--- Disable ReaSynth on all Listen-capable tracks that do NOT belong to the given tab
+-- Disable ReaSynth on Listen-capable tracks outside the tab's set
+-- (accepts a Tab object or a string resolved via current_tab_obj()).
 function disable_reasynth_except_for_tab(tab)
   -- Build set of track names that belong to the destination tab
   local keep = {}
-  if tab == "Keys" and PRO_KEYS_ACTIVE then
-    for _, tname in pairs(PRO_KEYS_TRACKS) do keep[tname] = true end
-  elseif tab == "Keys" then
-    keep[TRACKS.KEYS] = true
-    for _, tname in pairs(PRO_KEYS_TRACKS) do keep[tname] = true end
-  elseif tab == "Vocals" then
-    for _, tname in pairs(VOCALS_TRACKS) do keep[tname] = true end
-  elseif tab == "Drums" then
-    keep[TRACKS.DRUMS] = true
-  elseif tab == "Bass" then
-    keep[TRACKS.BASS] = true
-  elseif tab == "Guitar" then
-    keep[TRACKS.GUITAR] = true
+  local tab_obj = (type(tab) == "table" and tab.listen_tracknames) and tab
+                  or (current_tab_obj and current_tab_obj())
+                  or nil
+  if tab_obj then
+    for _, tname in ipairs(tab_obj:listen_tracknames()) do keep[tname] = true end
   end
 
-  -- All Listen-capable track names
-  local all_listen = {
+  -- All Listen-capable track names (derived from the registry)
+  local all_listen = (all_listen_tracks and all_listen_tracks()) or {
     TRACKS.DRUMS, TRACKS.BASS, TRACKS.GUITAR, TRACKS.KEYS,
     VOCALS_TRACKS["H1"], VOCALS_TRACKS["H2"], VOCALS_TRACKS["H3"], VOCALS_TRACKS["V"],
-    PRO_KEYS_TRACKS["X"], PRO_KEYS_TRACKS["H"], PRO_KEYS_TRACKS["M"], PRO_KEYS_TRACKS["E"],
+    PRO_KEYS_TRACKS["Expert"], PRO_KEYS_TRACKS["Hard"], PRO_KEYS_TRACKS["Medium"], PRO_KEYS_TRACKS["Easy"],
   }
   for _, tname in ipairs(all_listen) do
     if not keep[tname] then
@@ -339,25 +687,17 @@ function disable_reasynth_except_for_tab(tab)
   end
 end
 
--- Ensure the FX chain is unblocked for all Listen-capable tracks on the given tab
+-- Unblock FX chains on all Listen-capable tracks in the tab's set
+-- (accepts a Tab object or a string resolved via current_tab_obj()).
 function ensure_listen_fx_for_tab(tab)
-  if tab == "Keys" and PRO_KEYS_ACTIVE then
-    local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
-    local diff_key = diff_map[ACTIVE_DIFF] or "X"
-    ensure_track_fx_chain_enabled(PRO_KEYS_TRACKS[diff_key])
-  elseif tab == "Vocals" then
-    for _, tname in pairs(VOCALS_TRACKS) do
+  local tab_obj = (type(tab) == "table" and tab.listen_tracknames) and tab
+                  or (current_tab_obj and current_tab_obj())
+                  or nil
+  if tab_obj then
+    for _, tname in ipairs(tab_obj:listen_tracknames()) do
       ensure_track_fx_chain_enabled(tname)
     end
-  elseif tab == "Drums" then
-    ensure_track_fx_chain_enabled(TRACKS.DRUMS)
-  elseif tab == "Bass" then
-    ensure_track_fx_chain_enabled(TRACKS.BASS)
-  elseif tab == "Guitar" then
-    ensure_track_fx_chain_enabled(TRACKS.GUITAR)
-  elseif tab == "Keys" then
-    ensure_track_fx_chain_enabled(TRACKS.KEYS)
-    ensure_track_fx_chain_enabled(PRO_KEYS_TRACKS["X"])
+    return
   end
 end
 
@@ -563,9 +903,7 @@ function track_has_audio(tr)
   return false
 end
 
--- Show/hide tracks based on content type for Setup mode
--- Setup: show all tracks
--- Non-Setup: show MIDI tracks, hide audio tracks
+-- Show all tracks in Setup; otherwise show MIDI-only, hide audio-only tracks
 function set_tcp_visibility_for_setup(is_setup)
   local n = reaper.CountTracks(0)
   for i = 0, n - 1 do
@@ -720,9 +1058,7 @@ function unsolo_tab_audio()
   end
 end
 
--- Show/hide tracks in MCP based on whether they have audio content
--- Audio tracks: show in MCP
--- Non-audio tracks (MIDI only, empty): hide from MCP
+-- Show audio tracks in MCP; hide MIDI-only and empty tracks
 function set_mcp_visibility_for_audio_tracks()
   local n = reaper.CountTracks(0)
   for i = 0, n - 1 do
@@ -735,4 +1071,27 @@ function set_mcp_visibility_for_audio_tracks()
     end
   end
   reaper.TrackList_AdjustWindows(false)
+end
+
+-- Track color as 32-bit ImGui U32 (grey fallback when uncoloured or missing;
+-- moved from fcp_tracker_ui_table_overdrive.lua so other modules can call it).
+
+function get_track_color_u32(trackname, alpha)
+  local n = reaper.CountTracks(0)
+  for i = 0, n - 1 do
+    local tr = reaper.GetTrack(0, i)
+    local ok, name = reaper.GetTrackName(tr)
+    if ok and name == trackname then
+      local native_color = reaper.GetTrackColor(tr)
+      if native_color == 0 then
+        -- Track has no custom color, return a default gray
+        return ImGui.ImGui_ColorConvertDouble4ToU32(0.3, 0.3, 0.3, alpha or 1)
+      end
+      -- Convert native color to RGB
+      local r, g, b = reaper.ColorFromNative(native_color)
+      return ImGui.ImGui_ColorConvertDouble4ToU32((r or 0)/255, (g or 0)/255, (b or 0)/255, alpha or 1)
+    end
+  end
+  -- Track not found, return default
+  return ImGui.ImGui_ColorConvertDouble4ToU32(0.3, 0.3, 0.3, alpha or 1)
 end

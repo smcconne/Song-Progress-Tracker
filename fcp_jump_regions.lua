@@ -23,6 +23,7 @@ local me_recenter_target_time, me_recenter_frames = nil, 0
 
 -- Helpers ----------------------------------------------------------------
 
+-- Region info at time t, or nil
 local function region_info_at_time(t)
   local _, idx = reaper.GetLastMarkerAndCurRegion(proj, t)
   if idx and idx >= 0 and reaper.EnumProjectMarkers3 then
@@ -47,6 +48,7 @@ end
 local function measure_qn_bounds(i)
   local _, s, e = reaper.TimeMap_GetMeasureInfo(proj, i); return s or 0, e or 0
 end
+-- Fraction (0..1) through the measure at t, plus its measure index
 local function frac_in_measure_at_time(t)
   local qn = reaper.TimeMap_timeToQN(t) or 0
   local m = measure_index_at_time(t)
@@ -55,6 +57,7 @@ local function frac_in_measure_at_time(t)
   if L <= 0 then return 0.0, m end
   return (qn - s) / L, m
 end
+-- Time at measure i offset by fraction f within that measure
 local function time_at_measure_with_frac(i, f)
   local s, e = measure_qn_bounds(i)
   local L = e - s
@@ -62,11 +65,13 @@ local function time_at_measure_with_frac(i, f)
   local qt = s + (math.max(0, math.min(1, f)) * L)
   return reaper.TimeMap_QNToTime(qt)
 end
+-- Time offset from t by whole measures, keeping the in-measure fraction
 local function jump_time_by_measures(t, off)
   local frac, m = frac_in_measure_at_time(t)
   return time_at_measure_with_frac(m + (off or 0), frac)
 end
 
+-- Keep the arrange-view pan position relative to the edit cursor across a jump
 local function preserve_view_relative_to_edit_cursor(pre_t, post_t)
   local st, et = reaper.GetSet_ArrangeView2(proj, false, 0, 0)
   if not (st and et) then return end
@@ -86,6 +91,7 @@ end
 
 -- Jump execution ---------------------------------------------------------
 
+-- Jump the edit (and playing) cursor by MEAS_OFFSET, adjusting at region starts
 function JumpRegions.do_jump(skip_adjustments)
   local MEAS_OFFSET = JumpRegions.MEAS_OFFSET
   if type(MEAS_OFFSET) ~= "number" then return end
@@ -96,6 +102,7 @@ function JumpRegions.do_jump(skip_adjustments)
 
   local adjusted_offset = MEAS_OFFSET
 
+  -- Compensate when the cursor sits mid-measure at a region start
   if not skip_adjustments then
     local cur_rg_info = region_info_at_time(t_edit_now0)
     if cur_rg_info then
@@ -208,6 +215,5 @@ function JumpRegions.process_ext_signals()
   end
 end
 
--- Return the module
 return JumpRegions
 

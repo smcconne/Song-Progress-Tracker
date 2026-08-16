@@ -33,6 +33,14 @@ function lighten_u32(col_u32, amt)
   return ImGui.ImGui_ColorConvertDouble4ToU32(r, g, b, a)
 end
 
+-- Native color integer -> ImGui U32; falls back to col_region theme when 0.
+function native_color_to_u32(native_color, alpha)
+  if native_color == 0 then native_color = reaper.GetThemeColor("col_region", 0) or 0 end
+  if (native_color & 0x1000000) ~= 0 then native_color = native_color & 0xFFFFFF end
+  local r, g, b = reaper.ColorFromNative(native_color)
+  return ImGui.ImGui_ColorConvertDouble4ToU32((r or 0)/255, (g or 0)/255, (b or 0)/255, alpha or 1)
+end
+
 -- Pre-computed colors (initialized lazily)
 local colors_initialized = false
 COL_TEXT = nil
@@ -50,10 +58,7 @@ end
 -- Modifier key helper ---------------------------------------------------
 
 function any_modifier_held()
-  -- JS_Mouse_GetState with bitmask to query modifier keys:
-  -- Control/Cmd: (1 << 2) = 4
-  -- Shift: (1 << 3) = 8
-  -- Alt/Option: (1 << 4) = 16
+  -- JS_Mouse_GetState bitmasks: Ctrl=4, Shift=8, Alt=16.
   local ctrl  = reaper.JS_Mouse_GetState(1 << 2) ~= 0
   local shift = reaper.JS_Mouse_GetState(1 << 3) ~= 0
   local alt   = reaper.JS_Mouse_GetState(1 << 4) ~= 0
@@ -126,4 +131,17 @@ function max_label_width(ctx)
     if w > maxw then maxw = w end
   end
   return math.ceil(maxw) + 12
+end
+
+-- Linear scan of REGIONS; returns the region and 1-based index at time t.
+
+function find_region_at_time(t)
+  for i = 1, #REGIONS do
+    local rs = REGIONS[i].pos or 0
+    local re = REGIONS[i].r_end or 0
+    if t >= rs and t < re then
+      return REGIONS[i], i
+    end
+  end
+  return nil, nil
 end

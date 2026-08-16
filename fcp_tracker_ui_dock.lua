@@ -15,6 +15,7 @@ CMD_SCREENSET_SAVE_OV       = 40476  -- Screenset: Save window set #03
 CMD_SCREENSET_SAVE_VENUE    = 40477  -- Screenset: Save window set #04
 CMD_SCREENSET_SAVE_PRO_KEYS = 40478  -- Screenset: Save window set #05
 
+-- Height of the docked tracker window
 function GetDockedHeight()
   local hwnd = reaper.JS_Window_Find(APP_NAME, true)
   if hwnd then
@@ -27,6 +28,7 @@ function GetDockedHeight()
   return nil
 end
 
+-- Resize the docked tracker window and refresh dock layout
 function SetDockedHeight(h)
   if not h then return end
   if h < 100 then h = 100 end

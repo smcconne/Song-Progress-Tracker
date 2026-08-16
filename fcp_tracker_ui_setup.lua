@@ -5,9 +5,7 @@
 local reaper = reaper
 local ImGui  = reaper
 
---------------------------------------------------------------------------------
 -- Utilities
---------------------------------------------------------------------------------
 local function split_lines(s)
   local t = {}
   for line in s:gmatch("[^\r\n]+") do t[#t+1] = line end
@@ -39,9 +37,7 @@ local function set_next_narrow_combo_width(ctx, val)
   ImGui.ImGui_SetNextItemWidth(ctx, math.floor(w + 26)) -- text + arrow/padding
 end
 
---------------------------------------------------------------------------------
 -- Load allowed tokens from embedded block
---------------------------------------------------------------------------------
 local function load_embedded_whitelist()
   local path = script_path()
   local f = io.open(path, 'r')
@@ -53,9 +49,7 @@ local function load_embedded_whitelist()
   return s:sub(b+1, c-1)
 end
 
---------------------------------------------------------------------------------
 -- Build indices
---------------------------------------------------------------------------------
 local PRC_ALLOWED_RAW = load_embedded_whitelist()
 
 -- Check if whitelist loaded (don't show error, just set empty - will be populated below)
@@ -133,9 +127,7 @@ end
 
 PRC_base_list = keys_sorted(PRC_base_any)
 
---------------------------------------------------------------------------------
 -- UI state (global so draw_setup_tab can access them)
---------------------------------------------------------------------------------
 PRC_sel_base   = ""     -- first combo; "" triggers blank-first rule
 PRC_sel_num    = ""     -- second or third depending on rule
 PRC_sel_letter = ""     -- third or second depending on rule
@@ -177,6 +169,7 @@ function PRC_options_numbers_for_blank_letter(L)
   return v
 end
 
+-- Compose the token from the base/num/letter selection
 local function PRC_compose_token(b, n, l)
   if b == "" then
     if l == "" then return nil end
@@ -216,9 +209,7 @@ local set_time_selection_around
 local open_events_in_midi_editor
 local insert_essential_event
 
---------------------------------------------------------------------------------
 -- Insert at edit cursor on track "EVENTS"
---------------------------------------------------------------------------------
 local function PRC_find_track_by_name(name)
   local n = reaper.CountTracks(0)
   for i = 0, n-1 do
@@ -240,6 +231,7 @@ local function PRC_find_item_at_time(tr, t)
   return nil
 end
 
+-- Find item at time; create a MIDI take over that span if needed
 local function PRC_ensure_item_with_midi_take(tr, t)
   local it = PRC_find_item_at_time(tr, t)
   if not it then
@@ -256,9 +248,7 @@ local function PRC_ensure_item_with_midi_take(tr, t)
   return tk
 end
 
---------------------------------------------------------------------------------
 -- Helper: Insert essential event at edit cursor on EVENTS track
---------------------------------------------------------------------------------
 insert_essential_event = function(event_name)
   local tr = PRC_find_track_by_name("EVENTS")
   if not tr then return false end
@@ -276,6 +266,7 @@ insert_essential_event = function(event_name)
   return true
 end
 
+-- Insert a bracketed PRC event at the edit cursor on the EVENTS track
 function PRC_insert_event(msg_bracketed)
   local tr = PRC_find_track_by_name("EVENTS")
   if not tr then
@@ -305,9 +296,7 @@ function PRC_insert_event(msg_bracketed)
   open_events_in_midi_editor()
 end
 
---------------------------------------------------------------------------------
 -- Region color mapping based on section keywords
---------------------------------------------------------------------------------
 local PRC_REGION_COLORS = {
   -- {keywords (lowercase), color}
   -- Order matters: first match wins
@@ -345,9 +334,7 @@ local function PRC_get_region_color(name)
   return 0  -- No color (use default)
 end
 
---------------------------------------------------------------------------------
 -- Convert PRC events to regions
---------------------------------------------------------------------------------
 function PRC_convert_to_regions()
   local tr = PRC_find_track_by_name("EVENTS")
   if not tr then
@@ -459,9 +446,7 @@ function check_pending_region_refresh()
   end
 end
 
---------------------------------------------------------------------------------
 -- ImGui helpers
---------------------------------------------------------------------------------
 local function combo_from_list(ctx, label, cur, items)
   local changed = false
   if ImGui.ImGui_BeginCombo(ctx, label, cur == "" and "(none)" or cur, ImGui.ImGui_ComboFlags_HeightLargest()) then
@@ -477,9 +462,7 @@ local function combo_from_list(ctx, label, cur, items)
   return changed, cur
 end
 
---------------------------------------------------------------------------------
 -- Helper: Set time selection 1 measure before and after a position
---------------------------------------------------------------------------------
 set_time_selection_around = function(pos)
   if not pos then return end
   -- Get measure info for this position
@@ -496,9 +479,7 @@ set_time_selection_around = function(pos)
   reaper.GetSet_LoopTimeRange(true, false, time_start, time_end, false)
 end
 
---------------------------------------------------------------------------------
 -- Helper: Select EVENTS track and open floating MIDI editor
---------------------------------------------------------------------------------
 open_events_in_midi_editor = function()
   local n = reaper.CountTracks(0)
   for i = 0, n - 1 do
@@ -536,9 +517,7 @@ open_events_in_midi_editor = function()
   end
 end
 
---------------------------------------------------------------------------------
 -- Helper: Find the latest (furthest-right) event with [prc_ prefix
---------------------------------------------------------------------------------
 local function get_latest_prc_event_time()
   local n = reaper.CountTracks(0)
   local events_track = nil
@@ -573,9 +552,7 @@ local function get_latest_prc_event_time()
   return latest_time
 end
 
---------------------------------------------------------------------------------
 -- Helper: Find EVENTS track and get project time of a specific event
---------------------------------------------------------------------------------
 local function get_event_time(event_name)
   local n = reaper.CountTracks(0)
   local events_track = nil
@@ -606,9 +583,7 @@ local function get_event_time(event_name)
   return nil
 end
 
---------------------------------------------------------------------------------
 -- Helper: Find EVENTS track and get MBT location of a specific event
---------------------------------------------------------------------------------
 local function get_event_mbt(event_name)
   -- Find EVENTS track
   local n = reaper.CountTracks(0)
@@ -649,9 +624,7 @@ local function get_event_mbt(event_name)
   return nil
 end
 
---------------------------------------------------------------------------------
 -- Draw Setup Tab Content (public function called from fcp_tracker_ui.lua)
---------------------------------------------------------------------------------
 -- State for Import Stems popup
 local import_stems_popup_open = false
 local import_stems_file_list = {}
@@ -901,10 +874,8 @@ local function find_or_create_full_mix_track()
   return new_tr
 end
 
--- Import a single stem file to the appropriate track
--- If insert_time is provided, use it; otherwise default to 1.1.00
--- If force_overwrite is true, will delete existing audio first
--- Unmatched files go to FULL MIX track
+-- Import a stem file to its mapped track (FULL MIX if unmatched);
+-- force_overwrite deletes existing audio first.
 local function import_stem_to_track(filepath, filename, insert_time, force_overwrite)
   -- Find matching rule
   local match_rule = get_stem_rule_for_filename(filename)
@@ -1383,10 +1354,9 @@ function draw_setup_tab(ctx)
   end
 end
 
---------------------------------------------------------------------------------
 -- PASTE THE COMPLETE WHITELIST BETWEEN THE MARKERS BELOW, UNCHANGED.
 -- The format must be exactly one token per line, like: [prc_intro]
---------------------------------------------------------------------------------
+
 --__PRC_ALLOWED_START__
 --[[
 [prc_intro]

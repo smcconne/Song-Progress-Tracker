@@ -106,9 +106,7 @@ function apply_custom_note_order(chunk, noteLine)
   end
 end
 
----------------------------------------
 -- FXCHAIN + FLOAT helpers
----------------------------------------
 function get_fxchain_and_span(tr)
   local ok, chunk = reaper.GetTrackStateChunk(tr, "", true); if not ok or not chunk then return nil end
   local sPos, ePos = find_fxchain_span_depth(chunk); if not sPos or not ePos then return nil end

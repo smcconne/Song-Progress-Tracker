@@ -1,8 +1,9 @@
 -- @description FCP Song Progress Tracker
 -- @author FinestCardboardPearls
--- @version 2.2
+-- @version 2.5
 -- @provides
 --   [nomain] fcp_tracker_config.lua
+--   [nomain] fcp_tracker_tabs.lua
 --   [nomain] fcp_tracker_chunk_parse.lua
 --   [nomain] fcp_tracker_focus.lua
 --   [nomain] fcp_tracker_fxchain_geom.lua
@@ -10,17 +11,27 @@
 --   [nomain] fcp_tracker_chunk_update.lua
 --   [nomain] fcp_tracker_util_fs.lua
 --   [nomain] fcp_tracker_util_selection.lua
+--   [nomain] fcp_tracker_util_tracks.lua
+--   [nomain] fcp_tracker_confetti_anim.lua
 --   [nomain] fcp_tracker_model.lua
+--   [nomain] fcp_tracker_model_persistence.lua
+--   [nomain] fcp_tracker_model_build_progress.lua
+--   [nomain] fcp_tracker_model_timer.lua
+--   [nomain] fcp_tracker_model_percent.lua
+--   [nomain] fcp_tracker_model_mutate.lua
 --   [nomain] fcp_tracker_ui.lua
 --   [nomain] fcp_tracker_ui_dock.lua
 --   [nomain] fcp_tracker_ui_header.lua
 --   [nomain] fcp_tracker_ui_helpers.lua
---   [nomain] fcp_tracker_ui_prefs.lua
 --   [nomain] fcp_tracker_ui_setup.lua
---   [nomain] fcp_tracker_ui_table.lua
+--   [nomain] fcp_tracker_ui_table_common.lua
+--   [nomain] fcp_tracker_ui_table_overdrive.lua
+--   [nomain] fcp_tracker_ui_table_prefs.lua
+--   [nomain] fcp_tracker_ui_table_progress.lua
 --   [nomain] fcp_tracker_ui_tabs.lua
---   [nomain] fcp_tracker_ui_track_utils.lua
 --   [nomain] fcp_tracker_ui_widgets.lua
+--   [nomain] fcp_tracker_listen_icon.lua
+--   [nomain] fcp_tracker_ui_tooltips.lua
 --   [nomain] fcp_jump_regions.lua
 -- @about
 --   Rock Band Song Progress Tracker for REAPER.
@@ -32,7 +43,7 @@
 -- Rock Band Song Progress Tracker
 -- Entry point. Load modules, init Progress model/UI, run driver + UI.
 
-SCRIPT_VERSION = "2.2"
+SCRIPT_VERSION = "2.5"
 
 local function script_dir()
   local info = debug.getinfo(1, "S")
@@ -52,7 +63,6 @@ local proj = select(2, reaper.EnumProjects(-1))
 -- Restore last used tab BEFORE loading model (so current_tab is set before model initializes)
 local EXT_TAB_KEY = "LAST_TAB"
 local EXT_DIFF_KEY = "LAST_DIFF"
-local EXT_PRO_KEYS_KEY = "PRO_KEYS_ACTIVE"
 local restored_tab = nil
 
 -- Restore tab
@@ -74,28 +84,19 @@ if saved_tab and saved_tab ~= "" then
   end
 end
 
--- Restore difficulty
+-- Restore saved difficulty/mode. Raw local; validated against the current
+-- tab's own mode list once the modules (DIFFS_VOX/DIFFS_VENUE) are loaded.
+local pending_saved_diff = nil
 local retval2, saved_diff = reaper.GetProjExtState(proj, EXT_NS, EXT_DIFF_KEY)
 if saved_diff and saved_diff ~= "" then
-  -- Validate saved diff is in DIFFS list
-  for _, d in ipairs(DIFFS) do
-    if d == saved_diff then
-      ACTIVE_DIFF = saved_diff
-      break
-    end
-  end
+  pending_saved_diff = saved_diff
 end
 
--- Restore Pro Keys state
-local retval3, saved_pro_keys = reaper.GetProjExtState(proj, EXT_NS, EXT_PRO_KEYS_KEY)
-if saved_pro_keys == "true" then
-  PRO_KEYS_ACTIVE = true
-elseif saved_pro_keys == "false" then
-  PRO_KEYS_ACTIVE = false
-end
+
 
 -- Load remaining modules (order matters)
 local to_load = {
+  "fcp_tracker_tabs.lua",              -- Tab registry, must follow config
   "fcp_tracker_util_selection.lua",
   "fcp_tracker_util_fs.lua",
   "fcp_tracker_chunk_parse.lua",
@@ -104,15 +105,25 @@ local to_load = {
   "fcp_tracker_focus.lua",
   "fcp_tracker_layout.lua",
   "fcp_tracker_model.lua",
+  "fcp_tracker_model_persistence.lua",
+  "fcp_tracker_model_build_progress.lua",
+  "fcp_tracker_model_timer.lua",
+  "fcp_tracker_model_percent.lua",
+  "fcp_tracker_model_mutate.lua",
   "fcp_tracker_ui_helpers.lua",
   "fcp_tracker_ui_widgets.lua",
-  "fcp_tracker_ui_track_utils.lua",
-  "fcp_tracker_ui_dock.lua",          -- NEW: docked height control
-  "fcp_tracker_ui_tabs.lua",          -- NEW: tab bar rendering
-  "fcp_tracker_ui_header.lua",        -- NEW: header row with buttons
-  "fcp_tracker_ui_table.lua",         -- NEW: main region table
-  "fcp_tracker_ui_prefs.lua",         -- NEW: Prefs tab (Action Command IDs)
-  "fcp_tracker_ui_setup.lua",         -- NEW: Setup tab (PRC events tool)
+  "fcp_tracker_listen_icon.lua",
+  "fcp_tracker_ui_tooltips.lua",
+  "fcp_tracker_confetti_anim.lua",
+  "fcp_tracker_util_tracks.lua",
+  "fcp_tracker_ui_dock.lua",          -- docked height control
+  "fcp_tracker_ui_tabs.lua",          -- tab bar rendering
+  "fcp_tracker_ui_header.lua",        -- header row with buttons
+  "fcp_tracker_ui_table_common.lua",  -- shared table helpers
+  "fcp_tracker_ui_table_progress.lua",-- progress table renderer
+  "fcp_tracker_ui_table_overdrive.lua",-- overdrive table renderer
+  "fcp_tracker_ui_table_prefs.lua",   -- prefs table renderer
+  "fcp_tracker_ui_setup.lua",         -- Setup tab (PRC events tool)
   "fcp_tracker_ui.lua",               -- Slimmed down coordinator
 }
 for _, fname in ipairs(to_load) do dofile(DIR .. fname) end
@@ -131,8 +142,28 @@ FCP_CTX = ImGui.ImGui_CreateContext(
 -- Initialize model + UI once
 Progress_Init(true)  -- skip_fx_align=true, startup has its own flow
 
--- Auto-select leftmost incomplete difficulty for the restored tab
-auto_select_difficulty(current_tab)
+-- Validate the restored difficulty/mode against the tab's mode list,
+-- falling back to the first mode.
+local boot_obj = current_tab_obj and current_tab_obj() or nil
+if boot_obj then
+  local mode_list = DIFFS
+  if boot_obj.name == "Vocals" then
+    mode_list = DIFFS_VOX
+  elseif boot_obj.name == "Venue" then
+    mode_list = DIFFS_VENUE
+  end
+  local chosen_mode = pending_saved_diff
+  local valid = false
+  if chosen_mode then
+    for _, m in ipairs(mode_list) do
+      if m == chosen_mode then valid = true; break end
+    end
+  end
+  set_active_mode(valid and chosen_mode or mode_list[1])
+  last_mode_key = boot_obj:current_mode_key()
+  -- Re-apply the active difficulty's preview FX/note order on boot
+  apply_run_set_for_tab(current_tab)
+end
 
 Progress_UI_Init(FCP_CTX)
 
@@ -148,29 +179,30 @@ if restored_tab then
   Progress_UI_ForceSelectTab(restored_tab, 5)
 end
 
--- Force SET mode at startup only if the restored tab wants floating FX
-local startup_fx_tab = (restored_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or restored_tab
+-- Force SET mode at startup only if the restored tab wants floating FX.
+local startup_cur_obj = current_tab_obj and current_tab_obj() or nil
+local startup_fx_tab = (restored_tab == "Keys" and startup_cur_obj and startup_cur_obj:is_pro()) and "Pro Keys" or restored_tab
 if get_show_floating_fx(startup_fx_tab) then
   reaper.SetExtState(EXT_NS, EXT_FOCUS, "SET", false)
 end
-
--- Jump Regions is now a headless module (UI drawn inline in table header)
--- No separate window to start
 
 -- Save current tab, difficulty, and Pro Keys state on exit (project level)
 local function save_state_on_exit()
   if current_tab then
     reaper.SetProjExtState(proj, EXT_NS, EXT_TAB_KEY, current_tab)
   end
-  if ACTIVE_DIFF then
-    reaper.SetProjExtState(proj, EXT_NS, EXT_DIFF_KEY, ACTIVE_DIFF)
+  local exit_obj = current_tab_obj and current_tab_obj() or nil
+  local exit_diff = exit_obj and exit_obj:current_mode_key() or nil
+  if exit_diff then
+    reaper.SetProjExtState(proj, EXT_NS, EXT_DIFF_KEY, exit_diff)
   end
-  reaper.SetProjExtState(proj, EXT_NS, EXT_PRO_KEYS_KEY, tostring(PRO_KEYS_ACTIVE or false))
 
-  -- Run any actions with "leaving tab set" enabled for the current tab
-  -- (dest="" means dest_in is always false, so only leaving-flagged actions fire)
+  -- Run leaving-tab actions for the current tab; translate Keys to
+  -- "Pro Keys" when Pro is on for the variant key check.
   if current_tab then
-    run_actions_on_tab_switch(current_tab, "")
+    local exit_cur_obj = current_tab_obj and current_tab_obj() or nil
+    local origin_v = (current_tab == "Keys" and exit_cur_obj and exit_cur_obj:is_pro()) and "Pro Keys" or current_tab
+    run_actions_on_tab_switch(origin_v, "")
   end
 
   -- Close floating FX windows and active MIDI editor on exit
@@ -182,99 +214,15 @@ reaper.atexit(save_state_on_exit)
 -- Delay screenset loading until after window is established
 local startup_frames = 3
 
--- Handle FCP_PREVIEWS signal for difficulty switching
+-- Read + clear the FCP_PREVIEWS request and dispatch to the active Tab.
 local function check_previews_signal()
   local request = reaper.GetExtState("FCP_PREVIEWS", "REQUEST")
-  if request and request ~= "" then
-    reaper.DeleteExtState("FCP_PREVIEWS", "REQUEST", false)
-    
-    if current_tab == "Vocals" then
-      -- On Vocals tab: switch VOCALS_MODE (H1/H2/H3/V)
-      local mode_map = { EXPERT="H1", HARD="H2", MEDIUM="H3", EASY="V" }
-      local new_mode = mode_map[request]
-      if new_mode and VOCALS_MODE ~= new_mode then
-        VOCALS_MODE = new_mode
-        select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE], 40818, 40726)
-      end
-    elseif current_tab == "Venue" then
-      -- On Venue tab: 1=Camera, 2=Lighting, 3=toggle Sing, 4=toggle Spot
-      if request == "MEDIUM" or request == "EASY" then
-        -- Toggle individual Sing/Spot
-        local toggling_sing = (request == "MEDIUM")
-        if toggling_sing then SING_ACTIVE = not SING_ACTIVE
-        else                  SPOT_ACTIVE = not SPOT_ACTIVE end
+  if not request or request == "" then return end
+  reaper.DeleteExtState("FCP_PREVIEWS", "REQUEST", false)
 
-        if SING_ACTIVE or SPOT_ACTIVE then
-          local order = (SING_ACTIVE and SPOT_ACTIVE) and SING_SPOT_NOTE_ORDER
-                     or SING_ACTIVE and SING_NOTE_ORDER
-                     or SPOT_NOTE_ORDER
-          apply_venue_note_order_and_select(order)
-        else
-          -- Both off: restore current Camera/Lighting mode
-          select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
-          local me = reaper.MIDIEditor_GetActive()
-          if me then
-            reaper.MIDIEditor_OnCommand(me, 40452)
-            reaper.MIDIEditor_OnCommand(me, 40454)
-          end
-        end
-      else
-        -- EXPERT=Camera, HARD=Lighting
-        local mode_map = { EXPERT="Camera", HARD="Lighting" }
-        local new_mode = mode_map[request]
-        if new_mode then
-          -- Disable Sing/Spot when switching to Camera/Lighting
-          if SING_ACTIVE or SPOT_ACTIVE then
-            SING_ACTIVE = false
-            SPOT_ACTIVE = false
-          end
-          if VENUE_MODE ~= new_mode then
-            VENUE_MODE = new_mode
-            select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
-          end
-          -- Run 40452 then 40454 in MIDI editor
-          local me = reaper.MIDIEditor_GetActive()
-          if me then
-            reaper.MIDIEditor_OnCommand(me, 40452)
-            reaper.MIDIEditor_OnCommand(me, 40454)
-          end
-        end
-      end
-    else
-      -- On other tabs: switch ACTIVE_DIFF (global difficulty)
-      local diff_map = { EXPERT="Expert", HARD="Hard", MEDIUM="Medium", EASY="Easy" }
-      local new_diff = diff_map[request]
-      if new_diff then
-        -- Always apply RBN Preview FX preset changes when difficulty request is received
-        -- (ACTIVE_DIFF may already be set by button handler, but we still need to run_set)
-        ACTIVE_DIFF = new_diff
-        PAIR_MODE = 0
-        -- Apply RBN Preview FX preset changes to all instrument tracks
-        run_set(request)
-        -- Trigger track selection for the new difficulty
-        if current_tab == "Keys" and PRO_KEYS_ACTIVE then
-          local pk_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
-          local diff_key = pk_map[new_diff] or "X"
-          local trackname = PRO_KEYS_TRACKS[diff_key]
-          select_and_scroll_track_by_name(trackname, 40818, 40726)
-        end
-      elseif request == "HOPOS" then
-        PAIR_MODE = 1
-        run_set("HOPOS")
-      elseif request == "TRILLS" then
-        PAIR_MODE = 2
-        run_set("TRILLS")
-      elseif request == "PK_DEFAULT" then
-        PAIR_MODE = 0
-        run_set("PK_DEFAULT")
-      elseif request == "PK_RANGE" then
-        PAIR_MODE = 1
-        run_set("PK_RANGE")
-      elseif request == "PK_TRILL" then
-        PAIR_MODE = 2
-        run_set("PK_TRILL")
-      end
-    end
+  local obj = current_tab_obj and current_tab_obj()
+  if obj and obj.handle_difficulty_signal then
+    obj:handle_difficulty_signal(request)
   end
 end
 
@@ -292,6 +240,9 @@ local function main_loop()
     FCP_JUMP_REGIONS.process_ext_signals()
   end
   
+  -- Tooltip frame tick: advance the rising-edge state before any draw.
+  Tooltips_FrameTick()
+
   -- UI tick
   Progress_Tick()
   local open = Progress_UI_Draw()
@@ -305,8 +256,14 @@ local function main_loop()
   if startup_frames > 0 then
     startup_frames = startup_frames - 1
     if startup_frames == 0 then
-      -- Load the appropriate screenset once
-      if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+      -- Thin Tab wrapper locals: the single source of truth for active tab/variant/mode.
+      local cur_obj = current_tab_obj and current_tab_obj() or nil
+      local cur_mode = cur_obj and cur_obj:current_mode() or nil
+      local cur_trackname = cur_mode and cur_mode.trackname or nil
+      local is_pro_keys = cur_obj and cur_obj:is_pro() or false
+
+      -- Load the appropriate screenset once; no post-screenset recompute needed.
+      if is_pro_keys then
         reaper.Main_OnCommand(40458, 0)  -- Screenset: Load window set #05 (Pro Keys)
       elseif current_tab == "Vocals" then
         reaper.Main_OnCommand(40455, 0)  -- Screenset: Load window set #02
@@ -319,12 +276,12 @@ local function main_loop()
       end
       -- Close floating FX if the saved preference says so;
       -- opening + alignment is already handled by the SET signal in the driver loop
-      local fx_tab = (current_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or current_tab
+      local fx_tab = is_pro_keys and "Pro Keys" or current_tab
       if not get_show_floating_fx(fx_tab) then
         close_floating_fx()
       end
       -- Enforce MIDI editor open/close preference for the startup tab
-      local me_tab = (current_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or current_tab
+      local me_tab = is_pro_keys and "Pro Keys" or current_tab
       local want_midi_editor = get_midi_editor_open(me_tab)
       local me_open = false
       local me = reaper.MIDIEditor_GetActive()
@@ -332,14 +289,12 @@ local function main_loop()
 
       if want_midi_editor and not me_open then
         -- Open MIDI editor for the appropriate track
-        if current_tab == "Vocals" then
-          select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE], 40818, 40726)
-        elseif current_tab == "Venue" then
-          select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
-        elseif current_tab == "Keys" and PRO_KEYS_ACTIVE then
-          local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
-          local diff_key = diff_map[ACTIVE_DIFF] or "X"
-          select_and_scroll_track_by_name(PRO_KEYS_TRACKS[diff_key], 40818, 40726)
+        if current_tab == "Vocals" and cur_trackname then
+          select_and_scroll_track_by_name(cur_trackname, 40818, 40726)
+        elseif current_tab == "Venue" and cur_trackname then
+          select_and_scroll_track_by_name(cur_trackname, 40818, 40726)
+        elseif is_pro_keys and cur_trackname then
+          select_and_scroll_track_by_name(cur_trackname, 40818, 40726)
         elseif current_tab ~= "Setup" and current_tab ~= "Preferences" then
           select_track_for_tab(current_tab)
           local sel_tr = reaper.GetSelectedTrack(0, 0)
@@ -348,13 +303,14 @@ local function main_loop()
       elseif not want_midi_editor and me_open then
         close_midi_editor_if_not_inline()
       end
-      -- Run per-action tab-switch scripts for the startup tab
-      -- Use "" as origin so every action whose tab list includes the startup tab will fire
-      run_actions_on_tab_switch("", current_tab)
+      -- Run per-action tab-switch scripts for the startup tab ("" origin
+      -- so every action whose list includes the startup tab fires).
+      local dest_v = is_pro_keys and "Pro Keys" or current_tab
+      run_actions_on_tab_switch("", dest_v)
       disable_reasynth_except_for_tab(current_tab)
       ensure_listen_fx_for_tab(current_tab)
       -- Apply default Pro Keys note rows (48-72) on startup if in Pro Keys mode
-      if current_tab == "Keys" and PRO_KEYS_ACTIVE then
+      if is_pro_keys then
         reaper.SetExtState("FCP_PREVIEWS", "REQUEST", "PK_DEFAULT", false)
       end
       -- Apply default Vocals note rows (48-66) on startup if in Vocals mode

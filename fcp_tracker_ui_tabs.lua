@@ -1,6 +1,7 @@
 -- fcp_tracker_ui_tabs.lua
 -- Tab bar rendering and tab switching logic
--- Requires: fcp_tracker_ui_dock.lua, fcp_tracker_ui_helpers.lua
+-- Requires: fcp_tracker_ui_dock.lua, fcp_tracker_ui_helpers.lua,
+--           fcp_tracker_ui_tooltips.lua
 
 local reaper = reaper
 local ImGui  = reaper
@@ -22,34 +23,43 @@ CENTER_DELAY_FRAMES = 0
 WANT_CENTER_ON_TAB = false
 LAST_SEEN_TAB = current_tab
 
-function handle_tab_height_switch(ctx, new_tab)
+-- Tab-change orchestration: screenset + floating FX + MCP visibility.
+-- was_tab / was_pro_keys_active must be the pre-mutation snapshot.
+function handle_tab_height_switch(ctx, new_tab, was_tab, was_pro_keys_active, force_screenset)
   -- Skip during startup - main_loop handles initial screenset load
   if FCP_STARTUP_MODE then return end
-  
+
   -- Skip during project switch - model handles screenset load
   if PROJECT_SWITCH_MODE then return end
-  
+
   -- Tabs that share Setup-like behavior (no screenset, close MIDI editor, etc.)
   local SETUP_LIKE = { Setup = true, Preferences = true }
-  
+  -- Default was_tab to current_tab for callers that didn't pass it.
+  was_tab = was_tab or current_tab
+  -- Default to the live Keys variant; the refactored path passes the snapshot.
+  if was_pro_keys_active == nil then was_pro_keys_active = TABS_BY_NAME["Keys"]:is_pro() end
+
   -- Determine direction of switch
-  local is_switching_to_vocals   = (new_tab == "Vocals"    and current_tab ~= "Vocals")
-  local is_switching_from_vocals = (current_tab == "Vocals" and new_tab ~= "Vocals")
-  local is_switching_to_ov       = (new_tab == "Overdrive" and current_tab ~= "Overdrive")
-  local is_switching_from_ov     = (current_tab == "Overdrive" and new_tab ~= "Overdrive")
-  local is_switching_to_venue    = (new_tab == "Venue" and current_tab ~= "Venue")
-  local is_switching_from_venue  = (current_tab == "Venue" and new_tab ~= "Venue")
-  local is_switching_to_setup    = (SETUP_LIKE[new_tab] and not SETUP_LIKE[current_tab])
-  local is_switching_to_pro_keys = (new_tab == "Keys" and PRO_KEYS_ACTIVE and current_tab ~= "Keys")
-  local is_switching_from_pro_keys = (current_tab == "Keys" and PRO_KEYS_ACTIVE and new_tab ~= "Keys")
-  
+  local is_switching_to_vocals   = (new_tab == "Vocals"    and was_tab ~= "Vocals")
+  local is_switching_from_vocals = (was_tab == "Vocals" and new_tab ~= "Vocals")
+  local is_switching_to_ov       = (new_tab == "Overdrive" and was_tab ~= "Overdrive")
+  local is_switching_from_ov     = (was_tab == "Overdrive" and new_tab ~= "Overdrive")
+  local is_switching_to_venue    = (new_tab == "Venue" and was_tab ~= "Venue")
+  local is_switching_from_venue  = (was_tab == "Venue" and new_tab ~= "Venue")
+  local is_switching_to_setup    = (SETUP_LIKE[new_tab] and not SETUP_LIKE[was_tab])
+  local is_switching_to_pro_keys = (new_tab == "Keys" and TABS_BY_NAME["Keys"]:is_pro() and was_tab ~= "Keys")
+  local is_switching_from_pro_keys = (was_tab == "Keys" and was_pro_keys_active and new_tab ~= "Keys")
+
   -- Instrument tabs: Drums, Bass, Guitar, Keys (but not Pro Keys)
   local instrument_tabs = { Drums = true, Bass = true, Guitar = true }
   -- Keys is only an "instrument tab" if NOT in Pro Keys mode
-  if not PRO_KEYS_ACTIVE then instrument_tabs.Keys = true end
-  local is_switching_to_instrument = instrument_tabs[new_tab] and not instrument_tabs[current_tab]
+  if not TABS_BY_NAME["Keys"]:is_pro() then instrument_tabs.Keys = true end
+  local is_switching_to_instrument = instrument_tabs[new_tab] and not instrument_tabs[was_tab]
 
-  if is_switching_to_pro_keys then
+  -- force_screenset treats the source as a different tab (Pro variant flip).
+  local is_switching_via_variant = force_screenset
+
+  if is_switching_to_pro_keys or (is_switching_via_variant and new_tab == "Keys" and TABS_BY_NAME["Keys"]:is_pro()) then
     if CMD_SCREENSET_LOAD_PRO_KEYS and CMD_SCREENSET_LOAD_PRO_KEYS > 0 then
       reaper.Main_OnCommand(CMD_SCREENSET_LOAD_PRO_KEYS, 0)
     end
@@ -74,8 +84,9 @@ function handle_tab_height_switch(ctx, new_tab)
   elseif is_switching_to_setup then
     -- Switching to Setup: no screenset load needed
     CENTER_DELAY_FRAMES = 0
-  elseif is_switching_to_instrument then
-    -- Switching to Drums/Bass/Guitar/Keys from non-instrument tab
+  elseif is_switching_to_instrument or (is_switching_via_variant and new_tab == "Keys" and not TABS_BY_NAME["Keys"]:is_pro()) then
+    -- Switching to Drums/Bass/Guitar/Keys from non-instrument tab, OR
+    -- variant flip on Keys from pro to regular
     if CMD_SCREENSET_LOAD_OTHERS and CMD_SCREENSET_LOAD_OTHERS > 0 then
       reaper.Main_OnCommand(CMD_SCREENSET_LOAD_OTHERS, 0)
     end
@@ -90,10 +101,10 @@ function handle_tab_height_switch(ctx, new_tab)
     CENTER_DELAY_FRAMES = 2
   end
 
-  -- Unified floating FX logic: open/close based on per-tab preference
-  -- Resolve Keys → Pro Keys when Pro Keys mode is active
-  local dest_fx_tab   = (new_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or new_tab
-  local origin_fx_tab = (current_tab == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or current_tab
+  -- Floating FX open/close per-tab preference; origin/destination resolved
+  -- from the pre/post-mutation variants so Pro Keys tracks separately.
+  local dest_fx_tab   = (new_tab == "Keys" and TABS_BY_NAME["Keys"]:is_pro()) and "Pro Keys" or new_tab
+  local origin_fx_tab = (was_tab == "Keys" and was_pro_keys_active) and "Pro Keys" or was_tab
   local dest_wants_fx   = get_show_floating_fx(dest_fx_tab)
   local dest_wants_just = get_show_just_fx(dest_fx_tab)
   local origin_has_fx   = get_show_floating_fx(origin_fx_tab)
@@ -111,11 +122,12 @@ function handle_tab_height_switch(ctx, new_tab)
     -- Always close when destination doesn't want FX (screensets may have opened them)
     close_floating_fx()
   end
-  
+
   -- Update MCP visibility: show audio tracks, hide MIDI-only tracks
   set_mcp_visibility_for_audio_tracks()
 end
 
+-- Tab bar row with per-tab coloring and tooltips
 function tabs_row(ctx, redirect_focus_after_click)
   local PAIR_W = get_PAIR_W()
   
@@ -130,14 +142,10 @@ function tabs_row(ctx, redirect_focus_after_click)
   elseif current_tab == "Overdrive" then
     underline_pct = overdrive_completion_pct()
   else
-    local current_diff
-    if current_tab == "Vocals" then
-      current_diff = VOCALS_MODE
-    elseif current_tab == "Venue" then
-      current_diff = VENUE_MODE
-    else
-      current_diff = ACTIVE_DIFF
-    end
+    -- Use the thin Tab wrapper for the active mode key (canonical form).
+    local cur_obj = current_tab_obj and current_tab_obj() or nil
+    local cur_mode = cur_obj and cur_obj:current_mode() or nil
+    local current_diff = (cur_mode and cur_mode.key) or (cur_obj and cur_obj:current_mode_key())
     underline_pct = diff_pct(current_tab, current_diff)
   end
   local col = pct_scaled_u32(underline_pct, 0.86, 1.0)
@@ -182,7 +190,9 @@ function tabs_row(ctx, redirect_focus_after_click)
           p = 0
         end
       else
-        p = diff_pct(name, ACTIVE_DIFF)
+        local m_obj = current_tab_obj and current_tab_obj()
+        local mkey = (m_obj and m_obj:current_mode_key()) or ACTIVE_DIFF
+        p = diff_pct(name, mkey)
       end
       local ci = pct_scaled_u32(p, 0.46, 1.0)
       local ch = pct_scaled_u32(p, 0.74, 1.0)
@@ -198,111 +208,21 @@ function tabs_row(ctx, redirect_focus_after_click)
         flags = flags | ImGui.ImGui_TabItemFlags_SetSelected()
       end
       
-      -- Display "Pro Keys" instead of "Keys" when Pro Keys is active
+      -- Label reflects the Keys tab's own variant, not the current tab's.
       local display_name = name
-      if name == "Keys" and PRO_KEYS_ACTIVE then
+      if name == "Keys" and TABS_BY_NAME["Keys"]:is_pro() then
         display_name = "Pro Keys"
       end
       
-      if ImGui.ImGui_BeginTabItem(ctx, display_name, nil, flags) then
+      if ImGui.ImGui_BeginTabItem(ctx, display_name .. "###" .. name, nil, flags) then
         if current_tab ~= name then
-          handle_tab_height_switch(ctx, name)
-          local was_tab    = current_tab
-          local was_vocals = (current_tab == "Vocals")
-          local was_setup  = (current_tab == "Setup" or current_tab == "Preferences")
-          local was_venue  = (current_tab == "Venue")
-          local is_vocals  = (name == "Vocals")
-          local is_setup   = (name == "Setup" or name == "Preferences")
-          local is_venue   = (name == "Venue")
-          if name == "Preferences" then set_prefs_dropdown_for_tab(current_tab) end
-          current_tab = name
-          
-          -- Auto-select leftmost incomplete difficulty for the new tab
-          auto_select_difficulty(name)
-          
-          -- Update TCP visibility based on Setup mode
-          if is_setup ~= was_setup then
-            set_tcp_visibility_for_setup(is_setup)
+          -- set_active_tab is the single entry point for tab changes (side
+          -- effects centralized in apply_tab_change). Pass the variant explicitly.
+          if set_active_tab then
+            local dest_variant = (name == "Keys") and TABS_BY_NAME[name]:current_variant_key() or nil
+            set_active_tab(name, dest_variant, nil)
           end
-          
-          -- Show/hide master track based on Setup mode
-          if is_setup and not was_setup then
-            -- Switching TO Setup: show master
-            local cmd_show = reaper.NamedCommandLookup("_SWS_SHOWMASTER")
-            if cmd_show ~= 0 then reaper.Main_OnCommand(cmd_show, 0) end
-          elseif was_setup and not is_setup then
-            -- Switching FROM Setup: hide master
-            local cmd_hide = reaper.NamedCommandLookup("_SWS_HIDEMASTER")
-            if cmd_hide ~= 0 then reaper.Main_OnCommand(cmd_hide, 0) end
-          end
-          
-          -- Resolve MIDI Editor Open preference for destination tab
-          local me_tab = (name == "Keys" and PRO_KEYS_ACTIVE) and "Pro Keys" or name
-          local want_midi_editor = get_midi_editor_open(me_tab)
 
-          if name == "Setup" or name == "Prefs" then
-            -- Setup/Prefs tab: no track selection or special handling needed
-            if not want_midi_editor then close_midi_editor_if_not_inline() end
-          elseif name == "Vocals" then
-            if want_midi_editor then
-              select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE], 40818, 40726)
-            else
-              select_and_scroll_track_by_name(VOCALS_TRACKS[VOCALS_MODE])
-              close_midi_editor_if_not_inline()
-            end
-          elseif name == "Venue" then
-            if want_midi_editor then
-              select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE], 40818, 40726)
-            else
-              select_and_scroll_track_by_name(VENUE_TRACKS[VENUE_MODE])
-              close_midi_editor_if_not_inline()
-            end
-          elseif name == "Overdrive" then
-            if not want_midi_editor then close_midi_editor_if_not_inline() end
-            -- Don't select any track - prevents selection→tab follow from switching away
-          elseif name == "Keys" and PRO_KEYS_ACTIVE then
-            -- Pro Keys mode: open MIDI editor for the appropriate Pro Keys track
-            local diff_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
-            local diff_key = diff_map[ACTIVE_DIFF] or "X"
-            local trackname = PRO_KEYS_TRACKS[diff_key]
-            if want_midi_editor then
-              select_and_scroll_track_by_name(trackname, 40818, 40726)
-            else
-              select_and_scroll_track_by_name(trackname)
-              close_midi_editor_if_not_inline()
-            end
-          else
-            if not want_midi_editor then close_midi_editor_if_not_inline() end
-            -- Only select track if user didn't already select one for this tab
-            local sel_tr = reaper.GetSelectedTrack(0, 0)
-            local sel_name = sel_tr and select(2, reaper.GetTrackName(sel_tr))
-            local sel_tab = sel_name and TRACK_TO_TAB[sel_name]
-            if sel_tab ~= name then
-              select_track_for_tab(name)
-            end
-            if want_midi_editor then
-              -- Open MIDI editor for the selected track's first MIDI item
-              local sel_tr2 = reaper.GetSelectedTrack(0, 0)
-              if sel_tr2 then select_first_midi_item_on_track(sel_tr2) end
-            end
-          end
-          -- Run per-action tab-switch logic (checks origin/destination tab lists)
-          if not FCP_STARTUP_MODE then
-            run_actions_on_tab_switch(was_tab, name)
-          end
-          disable_reasynth_except_for_tab(name)
-          ensure_listen_fx_for_tab(name)
-          WANT_CENTER_ON_TAB = true
-          LAST_SEEN_TAB = name
-          
-          -- Ensure track zoom to max height is enabled after tab switch (skip for Setup/Prefs)
-          if name ~= "Setup" and name ~= "Prefs" then
-            local zoom_cmd = 40113  -- View: Toggle track zoom to maximum height
-            if reaper.GetToggleCommandState(zoom_cmd) == 0 then
-              reaper.Main_OnCommand(zoom_cmd, 0)
-            end
-          end
-          
           -- Give focus back after the tab switch has completed
           reaper.defer(redirect_focus_after_click)
         end
@@ -313,59 +233,32 @@ function tabs_row(ctx, redirect_focus_after_click)
       if ImGui.ImGui_IsItemHovered(ctx) then
         if name == "Drums" or name == "Bass" or name == "Guitar" or name == "Keys" then
           local display_name = name
-          if name == "Keys" and PRO_KEYS_ACTIVE then
+          if name == "Keys" and TABS_BY_NAME["Keys"]:is_pro() then
             display_name = "Pro Keys"
           end
-          local pct_text = tostring(p) .. "%"
-          
-          local tooltip_w = 194  -- Fixed width for tooltip
-          
-          -- Position: below the tab, left edge at window left edge
-          local win_x, _ = ImGui.ImGui_GetWindowPos(ctx)
           local _, item_bottom = ImGui.ImGui_GetItemRectMax(ctx)
-          
-          ImGui.ImGui_SetNextWindowPos(ctx, win_x, item_bottom + 5)
-          ImGui.ImGui_SetNextWindowSize(ctx, tooltip_w, 0)  -- 0 height = auto
-          
-          ImGui.ImGui_BeginTooltip(ctx)
-          
-          -- Left-aligned instrument name
-          ImGui.ImGui_Text(ctx, display_name .. " Progress:")
-          
-          -- Right-aligned percentage on same line, colored by weighted percentage
-          ImGui.ImGui_SameLine(ctx)
-          local avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
-          local pct_w = ImGui.ImGui_CalcTextSize(ctx, pct_text)
-          ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w - pct_w)
-          
-          local pct_col = pct_scaled_u32(p, 1.0, 1.0)
-          ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), pct_col)
-          ImGui.ImGui_Text(ctx, pct_text)
-          ImGui.ImGui_PopStyleColor(ctx)
-          
-          -- Show calculation breakdown
-          ImGui.ImGui_Separator(ctx)
-          local diffs, weights
-          if name == "Keys" and PRO_KEYS_ACTIVE then
-            diffs = { "Pro X", "Pro H", "Pro M", "Pro E" }
-            weights = { 50, 25, 15, 10 }
-          else
-            diffs = { "Expert", "Hard", "Medium", "Easy" }
-            weights = { 50, 25, 15, 10 }
-          end
-          for i, diff in ipairs(diffs) do
-            local diff_p = diff_pct(name, diff)
-            local label_text = string.format("%s (%d%%)", diff, weights[i])
-            local value_text = string.format("%d%%", diff_p)
-            ImGui.ImGui_Text(ctx, label_text)
-            ImGui.ImGui_SameLine(ctx)
-            local avail_w2 = ImGui.ImGui_GetContentRegionAvail(ctx)
-            local val_w = ImGui.ImGui_CalcTextSize(ctx, value_text)
-            ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w2 - val_w)
-            ImGui.ImGui_Text(ctx, value_text)
-          end
-          
-          ImGui.ImGui_EndTooltip(ctx)
+          -- Both variants store canonical Expert/Hard/Medium/Easy, so labels match.
+          local diffs   = { "Expert", "Hard", "Medium", "Easy" }
+          local weights = { 50, 25, 15, 10 }
+          draw_tab_tooltip(ctx, {
+            item_bottom_y = item_bottom,
+            key           = "tab:" .. name,
+            header        = display_name .. " Progress:",
+            pct           = p,
+          }, function(c)
+            ImGui.ImGui_Separator(c)
+            for i, diff in ipairs(diffs) do
+              local diff_p = diff_pct(name, diff)
+              local label_text = string.format("%s (%d%%)", diff, weights[i])
+              local value_text = string.format("%d%%", diff_p)
+              ImGui.ImGui_Text(c, label_text)
+              ImGui.ImGui_SameLine(c)
+              local avail_w2 = ImGui.ImGui_GetContentRegionAvail(c)
+              local val_w = ImGui.ImGui_CalcTextSize(c, value_text)
+              ImGui.ImGui_SetCursorPosX(c, ImGui.ImGui_GetCursorPosX(c) + avail_w2 - val_w)
+              ImGui.ImGui_Text(c, value_text)
+            end
+          end)
         elseif name == "Vocals" or name == "Venue" or name == "Overdrive" then
           local display_name = name
           local tooltip_pct
@@ -403,132 +296,93 @@ function tabs_row(ctx, redirect_focus_after_click)
               tooltip_pct = 0
             end
           end
-          local pct_text = tostring(tooltip_pct) .. "%"
-          
-          local tooltip_w = 194  -- Fixed width for tooltip
-          
-          -- Position: below the tab, left edge at window left edge
-          local win_x, _ = ImGui.ImGui_GetWindowPos(ctx)
           local _, item_bottom = ImGui.ImGui_GetItemRectMax(ctx)
-          
-          ImGui.ImGui_SetNextWindowPos(ctx, win_x, item_bottom + 5)
-          ImGui.ImGui_SetNextWindowSize(ctx, tooltip_w, 0)  -- 0 height = auto
-          
-          ImGui.ImGui_BeginTooltip(ctx)
-          
-          -- Left-aligned tab name
-          ImGui.ImGui_Text(ctx, display_name .. " Progress:")
-          
-          -- Right-aligned percentage on same line, colored by percentage
-          ImGui.ImGui_SameLine(ctx)
-          local avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
-          local pct_w = ImGui.ImGui_CalcTextSize(ctx, pct_text)
-          ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w - pct_w)
-          
-          local pct_col = pct_scaled_u32(tooltip_pct, 1.0, 1.0)
-          ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), pct_col)
-          ImGui.ImGui_Text(ctx, pct_text)
-          ImGui.ImGui_PopStyleColor(ctx)
-          
-          -- Show calculation breakdown
-          ImGui.ImGui_Separator(ctx)
-          if name == "Venue" then
-            local venue_items = {
-              {label = "Camera (50%)", value = string.format("%d%%", camera_pct)},
-              {label = "Lighting (50%)", value = string.format("%d%%", lighting_pct)},
-            }
-            for _, vi in ipairs(venue_items) do
-              ImGui.ImGui_Text(ctx, vi.label)
-              ImGui.ImGui_SameLine(ctx)
-              local avail_w2 = ImGui.ImGui_GetContentRegionAvail(ctx)
-              local val_w = ImGui.ImGui_CalcTextSize(ctx, vi.value)
-              ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w2 - val_w)
-              ImGui.ImGui_Text(ctx, vi.value)
-            end
-          elseif name == "Vocals" then
-            -- Show fixed weights (renormalized for non-empty tracks)
-            local weight_sum = 0
-            for _, vb in ipairs(vocals_breakdown) do
-              if not vb.is_empty then weight_sum = weight_sum + vb.weight end
-            end
-            for _, vb in ipairs(vocals_breakdown) do
-              if vb.is_empty then
-                local empty_text = "Empty"
-                ImGui.ImGui_Text(ctx, vb.track)
-                ImGui.ImGui_SameLine(ctx)
-                local avail_w2 = ImGui.ImGui_GetContentRegionAvail(ctx)
-                local val_w = ImGui.ImGui_CalcTextSize(ctx, empty_text)
-                ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w2 - val_w)
-                ImGui.ImGui_Text(ctx, empty_text)
-              else
-                local display_w = weight_sum > 0 and math.floor(vb.weight / weight_sum * 100 + 0.5) or 0
-                local label_text = string.format("%s (%d%%)", vb.track, display_w)
-                local value_text = string.format("%d%%", vb.pct)
-                ImGui.ImGui_Text(ctx, label_text)
-                ImGui.ImGui_SameLine(ctx)
-                local avail_w2 = ImGui.ImGui_GetContentRegionAvail(ctx)
-                local val_w = ImGui.ImGui_CalcTextSize(ctx, value_text)
-                ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w2 - val_w)
-                ImGui.ImGui_Text(ctx, value_text)
+          draw_tab_tooltip(ctx, {
+            item_bottom_y = item_bottom,
+            key           = "tab:" .. name,
+            header        = display_name .. " Progress:",
+            pct           = tooltip_pct,
+          }, function(c)
+            ImGui.ImGui_Separator(c)
+            if name == "Venue" then
+              local venue_items = {
+                {label = "Camera (50%)", value = string.format("%d%%", camera_pct)},
+                {label = "Lighting (50%)", value = string.format("%d%%", lighting_pct)},
+              }
+              for _, vi in ipairs(venue_items) do
+                ImGui.ImGui_Text(c, vi.label)
+                ImGui.ImGui_SameLine(c)
+                local avail_w2 = ImGui.ImGui_GetContentRegionAvail(c)
+                local val_w = ImGui.ImGui_CalcTextSize(c, vi.value)
+                ImGui.ImGui_SetCursorPosX(c, ImGui.ImGui_GetCursorPosX(c) + avail_w2 - val_w)
+                ImGui.ImGui_Text(c, vi.value)
               end
+            elseif name == "Vocals" then
+              -- Show fixed weights (renormalized for non-empty tracks)
+              local weight_sum = 0
+              for _, vb in ipairs(vocals_breakdown) do
+                if not vb.is_empty then weight_sum = weight_sum + vb.weight end
+              end
+              for _, vb in ipairs(vocals_breakdown) do
+                if vb.is_empty then
+                  local empty_text = "Empty"
+                  ImGui.ImGui_Text(c, vb.track)
+                  ImGui.ImGui_SameLine(c)
+                  local avail_w2 = ImGui.ImGui_GetContentRegionAvail(c)
+                  local val_w = ImGui.ImGui_CalcTextSize(c, empty_text)
+                  ImGui.ImGui_SetCursorPosX(c, ImGui.ImGui_GetCursorPosX(c) + avail_w2 - val_w)
+                  ImGui.ImGui_Text(c, empty_text)
+                else
+                  local display_w = weight_sum > 0 and math.floor(vb.weight / weight_sum * 100 + 0.5) or 0
+                  local label_text = string.format("%s (%d%%)", vb.track, display_w)
+                  local value_text = string.format("%d%%", vb.pct)
+                  ImGui.ImGui_Text(c, label_text)
+                  ImGui.ImGui_SameLine(c)
+                  local avail_w2 = ImGui.ImGui_GetContentRegionAvail(c)
+                  local val_w = ImGui.ImGui_CalcTextSize(c, value_text)
+                  ImGui.ImGui_SetCursorPosX(c, ImGui.ImGui_GetCursorPosX(c) + avail_w2 - val_w)
+                  ImGui.ImGui_Text(c, value_text)
+                end
+              end
+            elseif name == "Overdrive" then
+              ImGui.ImGui_Text(c, "Based on OV + Fill placement")
             end
-          elseif name == "Overdrive" then
-            ImGui.ImGui_Text(ctx, "Based on OV + Fill placement")
-          end
-          
-          ImGui.ImGui_EndTooltip(ctx)
+          end)
         elseif name == "Preferences" then
           local pref_pct = prefs_test_pct()
-          local pct_text = tostring(pref_pct) .. "%"
-
-          local tooltip_w = 194
-          local win_x, _ = ImGui.ImGui_GetWindowPos(ctx)
           local _, item_bottom = ImGui.ImGui_GetItemRectMax(ctx)
-
-          ImGui.ImGui_SetNextWindowPos(ctx, win_x, item_bottom + 5)
-          ImGui.ImGui_SetNextWindowSize(ctx, tooltip_w, 0)
-
-          ImGui.ImGui_BeginTooltip(ctx)
-
-          ImGui.ImGui_Text(ctx, "Preferences Progress:")
-
-          ImGui.ImGui_SameLine(ctx)
-          local avail_w = ImGui.ImGui_GetContentRegionAvail(ctx)
-          local pct_w = ImGui.ImGui_CalcTextSize(ctx, pct_text)
-          ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w - pct_w)
-
-          local pct_col = pct_scaled_u32(pref_pct, 1.0, 1.0)
-          ImGui.ImGui_PushStyleColor(ctx, ImGui.ImGui_Col_Text(), pct_col)
-          ImGui.ImGui_Text(ctx, pct_text)
-          ImGui.ImGui_PopStyleColor(ctx)
-
-          ImGui.ImGui_Separator(ctx)
-          local action_labels = {
-            {key = "encore_vox",       label = "Encore Vox Preview"},
-            {key = "lyrics_clip",      label = "Lyrics Clipboard"},
-            {key = "spectracular",     label = "Spectracular Stereo"},
-            {key = "venue_preview",    label = "Venue Preview"},
-            {key = "pro_keys_preview", label = "Pro Keys Preview"},
-          }
-          for _, entry in ipairs(action_labels) do
-            local state = PREFS_TEST_STATE and PREFS_TEST_STATE[entry.key]
-            local status
-            if state == true then
-              status = "Pass"
-            elseif state == false then
-              status = "Fail"
-            else
-              status = "Untested"
+          draw_tab_tooltip(ctx, {
+            item_bottom_y = item_bottom,
+            key           = "tab:Preferences",
+            header        = "Preferences Progress:",
+            pct           = pref_pct,
+          }, function(c)
+            ImGui.ImGui_Separator(c)
+            local action_labels = {
+              {key = "encore_vox",       label = "Encore Vox Preview"},
+              {key = "lyrics_clip",      label = "Lyrics Clipboard"},
+              {key = "spectracular",     label = "Spectracular Stereo"},
+              {key = "venue_preview",    label = "Venue Preview"},
+              {key = "pro_keys_preview", label = "Pro Keys Preview"},
+            }
+            for _, entry in ipairs(action_labels) do
+              local state = PREFS_TEST_STATE and PREFS_TEST_STATE[entry.key]
+              local status
+              if state == true then
+                status = "Pass"
+              elseif state == false then
+                status = "Fail"
+              else
+                status = "Untested"
+              end
+              ImGui.ImGui_Text(c, entry.label)
+              ImGui.ImGui_SameLine(c)
+              local avail_w2 = ImGui.ImGui_GetContentRegionAvail(c)
+              local status_w = ImGui.ImGui_CalcTextSize(c, status)
+              ImGui.ImGui_SetCursorPosX(c, ImGui.ImGui_GetCursorPosX(c) + avail_w2 - status_w)
+              ImGui.ImGui_Text(c, status)
             end
-            ImGui.ImGui_Text(ctx, entry.label)
-            ImGui.ImGui_SameLine(ctx)
-            local avail_w2 = ImGui.ImGui_GetContentRegionAvail(ctx)
-            local status_w = ImGui.ImGui_CalcTextSize(ctx, status)
-            ImGui.ImGui_SetCursorPosX(ctx, ImGui.ImGui_GetCursorPosX(ctx) + avail_w2 - status_w)
-            ImGui.ImGui_Text(ctx, status)
-          end
-
-          ImGui.ImGui_EndTooltip(ctx)
+          end)
         end
       end
 

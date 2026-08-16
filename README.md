@@ -120,7 +120,7 @@ Comprehensive Practice Section (PRC) event insertion tool:
 - **REAPER** v6.0+ with ReaImGui extension installed
 - **JS_ReaScriptAPI** extension for window management
 - **RBN Preview VSTi** for instrument preview functionality
-- **SWS Extension** required for additional features
+- **SWS Extension** required for ReaPack
 
 ## Installation
 
@@ -150,14 +150,22 @@ Comprehensive Practice Section (PRC) event insertion tool:
 |------|---------|
 | `fcp_tracker_main.lua` | Entry point, initialization, main loop |
 | `fcp_tracker_config.lua` | Configuration constants and shared settings |
-| `fcp_tracker_model.lua` | Data model, MIDI scanning, persistence |
+| `fcp_tracker_model.lua` | Tree shape and public state globals (PROGRESS, STATE, SAVED, region timer basics) |
+| `fcp_tracker_model_persistence.lua` | ExtState load/save, variant-aware storage keys, region name <-> index lookup |
+| `fcp_tracker_model_build_progress.lua` | MIDI-take -> STATE tree computation |
+| `fcp_tracker_model_percent.lua` | Percent calculations and auto-select-difficulty |
+| `fcp_tracker_model_mutate.lua` | State-machine transitions over STATE |
+| `fcp_tracker_model_timer.lua` | Per-region active-time accumulator |
 | `fcp_tracker_ui.lua` | Main UI coordinator |
 | `fcp_tracker_ui_tabs.lua` | Tab bar rendering and switching |
 | `fcp_tracker_ui_header.lua` | Difficulty buttons and mode switches |
-| `fcp_tracker_ui_table.lua` | Region table and overdrive table rendering |
+| `fcp_tracker_ui_table_common.lua` | Shared helpers for the table renderers |
+| `fcp_tracker_ui_table_progress.lua` | Progress table (Region \| Difficulty \| Timer) |
+| `fcp_tracker_ui_table_overdrive.lua` | Overdrive table and overdrive MIDI-edit helpers |
+| `fcp_tracker_ui_table_prefs.lua` | Prefs tab for Action Command ID configuration |
 | `fcp_tracker_ui_widgets.lua` | Reusable UI components |
 | `fcp_tracker_ui_helpers.lua` | UI utility functions |
-| `fcp_tracker_ui_track_utils.lua` | Track selection and scrolling helpers |
+| `fcp_tracker_util_tracks.lua` | Track selection and scrolling helpers |
 | `fcp_tracker_ui_dock.lua` | Docking height control |
 | `fcp_tracker_ui_setup.lua` | Setup tab with PRC events tool |
 | `fcp_tracker_focus.lua` | Focus management and driver loop |
@@ -186,3 +194,8 @@ This project is provided as-is for the Rock Band custom song authoring community
 ## Credits
 
 Developed by FinestCardboardPearls for the Rock Band 3 custom song community.
+
+## My other scripts (Included in ReaPack):
+
+https://github.com/smcconne/RB3-Venue-Preview
+https://github.com/smcconne/Misc-RB-Reaper-Scripts

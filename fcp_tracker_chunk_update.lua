@@ -13,26 +13,11 @@
 
 local reaper = reaper
 
-----------------------------------------------------------------
--- 1. Inline template data
---
--- Each entry is keyed by "kind" (EXPERT, HARD, HOPOS, etc),
--- then by slot key ("DRUMS", "BASS", "GUITAR", "KEYS").
---
--- For each slot you can provide:
---   fxchain           -> string containing a <VST ...> block (or whole <FXCHAIN> block)
---   custom_note_order -> string WITHOUT leading newline, e.g.
---                        "  CUSTOM_NOTE_ORDER 96 97 98 99 100"
---
--- If fxchain is nil, the FX are left alone and only CUSTOM_NOTE_ORDER is applied.
-----------------------------------------------------------------
+-- 1. Inline template data, keyed by "kind" then slot key. Each slot may
+--    carry an fxchain (<VST> block) and/or a custom_note_order line.
 
 local INLINE_TEMPLATES = {
-  ----------------------------------------------------------------
-  -- Expert difficulty: shared CUSTOM_NOTE_ORDER for all four tracks.
-  -- The Bass Expert fxchain below is taken from your generator
-  -- script that was built from "Bass Expert Only.RTrackTemplate".
-  ----------------------------------------------------------------
+  -- Expert difficulty: shared CUSTOM_NOTE_ORDER for all four tracks
   EXPERT = {
     DRUMS = {
       fxchain = [[
@@ -316,9 +301,7 @@ local INLINE_TEMPLATES = {
     },
   },
 
-  ----------------------------------------------------------------
-  -- Example: HOPOs (and Toms) view, note rows only (FX unchanged).
-  ----------------------------------------------------------------
+  -- Example: HOPOs (and Toms) view, note rows only (FX unchanged)
   HOPOS = {
     DRUMS = {
       custom_note_order = "  CUSTOM_NOTE_ORDER 110 111 112",
@@ -334,9 +317,7 @@ local INLINE_TEMPLATES = {
     },
   },
 
-  ----------------------------------------------------------------
-  -- Example: TRILLS view, note rows only (FX unchanged).
-  ----------------------------------------------------------------
+  -- Example: TRILLS view, note rows only (FX unchanged)
   TRILLS = {
     DRUMS = {
       custom_note_order = "  CUSTOM_NOTE_ORDER 126 127 103",
@@ -352,27 +333,21 @@ local INLINE_TEMPLATES = {
     },
   },
 
-  ----------------------------------------------------------------
-  -- Pro Keys Default: note rows 48-72 (FX unchanged).
-  ----------------------------------------------------------------
+  -- Pro Keys Default: note rows 48-72 (FX unchanged)
   PK_DEFAULT = {
     KEYS = {
       custom_note_order = "  CUSTOM_NOTE_ORDER 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72",
     },
   },
 
-  ----------------------------------------------------------------
-  -- Pro Keys Range: note rows only (FX unchanged).
-  ----------------------------------------------------------------
+  -- Pro Keys Range: note rows only (FX unchanged)
   PK_RANGE = {
     KEYS = {
       custom_note_order = "  CUSTOM_NOTE_ORDER 0 2 4 5 7 9",
     },
   },
 
-  ----------------------------------------------------------------
-  -- Pro Keys Trill: note rows only (FX unchanged).
-  ----------------------------------------------------------------
+  -- Pro Keys Trill: note rows only (FX unchanged)
   PK_TRILL = {
     KEYS = {
       custom_note_order = "  CUSTOM_NOTE_ORDER 126 127 115",
@@ -380,10 +355,7 @@ local INLINE_TEMPLATES = {
   },
 }
 
-----------------------------------------------------------------
--- 2. Precompute per-kind/per-slot preview state
---    (VST body, preset line, CUSTOM_NOTE_ORDER line)
-----------------------------------------------------------------
+-- 2. Precompute per-kind/per-slot preview state (VST body, preset, note order)
 
 local PREVIEW_STATE = {}
 
@@ -409,9 +381,7 @@ for kind, perInst in pairs(INLINE_TEMPLATES) do
   PREVIEW_STATE[kind] = kindState
 end
 
-----------------------------------------------------------------
 -- 3. Internal helper: apply inline state to a single track
-----------------------------------------------------------------
 
 local function apply_preview_state_to_track(track, slotKey, kind)
   local kindState = PREVIEW_STATE[kind]
@@ -460,9 +430,7 @@ local function apply_preview_state_to_track(track, slotKey, kind)
   reaper.SetTrackStateChunk(track, chunk, false)
 end
 
-----------------------------------------------------------------
 -- 4. Public API used by the preview driver
-----------------------------------------------------------------
 
 -- Kept as a thin wrapper so existing call sites can be migrated easily
 local function apply_template_to_named_track(trackName, slotKey, kind)
@@ -509,9 +477,9 @@ function run_set(kind)
     local keys_track_name
     if keys_only then
       -- Pro Keys: resolve the actual difficulty track (e.g. PART REAL_KEYS_X)
-      local pk_map = { Expert="X", Hard="H", Medium="M", Easy="E" }
-      local diff_key = pk_map[ACTIVE_DIFF] or "X"
-      keys_track_name = PRO_KEYS_TRACKS[diff_key]
+      local cur_obj = current_tab_obj and current_tab_obj()
+      local cur_key = (cur_obj and cur_obj:current_mode_key()) or "Expert"
+      keys_track_name = PRO_KEYS_TRACKS[cur_key] or PRO_KEYS_TRACKS["Expert"]
     else
       keys_track_name = TRACKS.KEYS
     end

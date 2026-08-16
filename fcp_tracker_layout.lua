@@ -1,6 +1,7 @@
 -- fcp_tracker_layout.lua
 -- Split from Switch RBN Previews Driver (background).lua
 
+-- Focus floaters left to right, one per FOCUS_DELAY
 function focus_walk_left_to_right()
   local tracks = {}
   for _,key in ipairs(ORDER) do
@@ -21,6 +22,7 @@ function focus_walk_left_to_right()
   go()
 end
 
+-- Open all floaters in parallel, tile them, then fire cb (watchdog-guarded)
 function restore_set_layout_open_all_parallel(cb)
   local x0,y0,w,h = get_master_geom()
   if not x0 then if cb then cb() end; return end
@@ -81,6 +83,7 @@ function restore_set_layout_open_all_parallel(cb)
   if started == 0 then fire_once() end
 end
 
+-- Save DRUMS geometry as the global origin, apply to all slots, then focus
 function lineup_save_and_apply_then_focus()
   local trD = find_track_by_name(TRACKS.DRUMS); if not trD then return end
   local _,_,_, fxD = get_fxchain_and_span(trD); if not fxD then return end

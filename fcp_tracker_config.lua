@@ -1,9 +1,7 @@
 -- fcp_tracker_config.lua
 -- Description: RBN Preview Driver configuration and shared constants
 
----------------------------------------
 -- USER CONFIG
----------------------------------------
 STARTUP_POPUP = true
 
 -- App / UI constants for Progress Tracker
@@ -31,7 +29,7 @@ TRACK_TO_TAB = {
   ["PART REAL_KEYS_X"]="Keys", ["PART REAL_KEYS_H"]="Keys", ["PART REAL_KEYS_M"]="Keys", ["PART REAL_KEYS_E"]="Keys",
   ["CAMERA"]="Venue", ["LIGHTING"]="Venue"
 }
-TAB_CANON    = { DRUMS="Drums", BASS="Bass", GUITAR="Guitar", KEYS="Keys", VOCALS="Vocals", VENUE="Venue", CAMERA="Camera", LIGHTING="Lighting" }
+TAB_CANON    = { DRUMS="Drums", BASS="Bass", GUITAR="Guitar", KEYS="Keys", VOCALS="Vocals", VENUE="Venue" }
 DIFF_CANON   = { EXPERT="Expert", HARD="Hard", MEDIUM="Medium", EASY="Easy", H1="H1", H2="H2", H3="H3", V="V", CAMERA="Camera", LIGHTING="Lighting" }
 ACTIVE_DIFF  = "Expert"
 
@@ -39,10 +37,13 @@ ACTIVE_DIFF  = "Expert"
 VOCALS_TRACKS = { H1="HARM1", H2="HARM2", H3="HARM3", V="PART VOCALS" }
 VOCALS_PITCH_RANGE = {36, 84} -- inclusive
 
+-- Vocals tracks Listen-active when master Listen last turned everything
+-- off; restored by the next master Listen click.
+VOCALS_LISTEN_SAVED = nil
+
 -- Pro Keys sub-modes and track names
-PRO_KEYS_TRACKS = { X="PART REAL_KEYS_X", H="PART REAL_KEYS_H", M="PART REAL_KEYS_M", E="PART REAL_KEYS_E" }
+PRO_KEYS_TRACKS = { Expert="PART REAL_KEYS_X", Hard="PART REAL_KEYS_H", Medium="PART REAL_KEYS_M", Easy="PART REAL_KEYS_E" }
 PRO_KEYS_PITCH_RANGE = {48, 72} -- inclusive
-DIFFS_PRO_KEYS = {"X", "H", "M", "E"}
 
 -- Venue sub-modes and track names
 VENUE_TRACKS = { Camera="CAMERA", Lighting="LIGHTING" }
@@ -164,3 +165,6 @@ OV_MAX_NOTES_BRIGHTNESS = OV_MAX_NOTES_BRIGHTNESS or 12
 
 -- OV table: show grey note rectangles (on by default)
 OV_SHOW_NOTES = (OV_SHOW_NOTES == nil) and true or OV_SHOW_NOTES
+
+-- Confetti rect width in px (rightmost N pixels of the header cell and tooltips).
+CONFETTI_WIDTH = 30
